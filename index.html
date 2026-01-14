@@ -1,0 +1,728 @@
+<!-- index.html (replace your existing file with this) -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Offline Planner</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-theme="aurora" data-font="system">
+  <header class="topbar">
+    <div class="topbar__left">
+      <div class="brand">Offline Planner</div>
+      <div id="topbarMeta" class="topbar__meta">—</div>
+      <div id="syncStamp" class="topbar__meta">Last synced: —</div>
+    </div>
+
+    <div class="topbar__right">
+      <button id="btnRefreshDashboard" class="iconBtn" title="Refresh">↻</button>
+      <button id="btnTheme" class="iconBtn" title="Theme & font">🎨</button>
+      <button id="btnExportPDF" class="iconBtn" title="Export to PDF">⤓</button>
+      <button id="btnSettings" class="iconBtn" title="Settings">⚙</button>
+      <button id="btnAccount" class="iconBtn" title="Account">👤</button>
+      <button id="btnTabsMenu" class="iconBtn" title="Show/Hide tabs">⋯</button>
+      <button id="btnSyncNow" class="btn btn--ghost" type="button">Sync</button>
+    </div>
+  </header>
+
+  <nav id="tabsBar" class="tabs">
+    <button id="tab-dashboard" class="tab active" type="button">Dashboard</button>
+    <button id="tab-todo" class="tab" type="button">To-do</button>
+    <button id="tab-journal" class="tab" type="button">Journal</button>
+    <button id="tab-actions" class="tab" type="button">Projects</button>
+    <button id="tab-habits" class="tab" type="button">Habits</button>
+    <button id="tab-meals" class="tab" type="button">Meals</button>
+    <button id="tab-notes" class="tab" type="button">Notes</button>
+  </nav>
+
+  <main class="container">
+    <!-- DASHBOARD -->
+    <section id="view-dashboard" class="view">
+      <div class="card">
+        <div class="segmented">
+          <button id="dashPeriodWeek" class="segBtn" type="button" aria-pressed="true">Week</button>
+          <button id="dashPeriodMonth" class="segBtn" type="button" aria-pressed="false">Month</button>
+          <button id="dashPeriodYear" class="segBtn" type="button" aria-pressed="false">Year</button>
+        </div>
+
+        <div class="dashGrid">
+          <div class="metricCard">
+            <div class="metricTop">
+              <div class="metricTitle">To-do completion</div>
+              <div id="mTodoPeriodLabel" class="muted">This week</div>
+            </div>
+            <div class="metricValue" id="mTodoWeek">—</div>
+            <div class="metricSub muted">Today: <span id="mTodoToday">—</span></div>
+          </div>
+
+          <div class="metricCard">
+            <div class="metricTop">
+              <div class="metricTitle">Habit consistency</div>
+              <div id="mHabitPeriodLabel" class="muted">This week</div>
+            </div>
+            <div class="metricValue" id="mHabitWeek">—</div>
+            <div class="metricSub muted">Open tasks today: <span id="mOpenToday">—</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TODO -->
+    <section id="view-todo" class="view hidden">
+      <div id="todoIndexCard" class="card">
+        <div class="cardHeader">
+          <div class="cardTitle">To-do lists</div>
+          <div class="cardActions">
+            <button id="btnTodoToday" class="btn" type="button">Today</button>
+            <button id="btnTodoNewList" class="btn btn--primary" type="button">+</button>
+          </div>
+        </div>
+
+        <div class="filterRow">
+
+          <div class="filterSingle">
+            <select id="todoSort" class="select">
+              <option value="dateDesc">Date (newest)</option>
+              <option value="dateAsc">Date (oldest)</option>
+            </select>
+          </div>
+        </div>
+
+        <ul id="todoDateList" class="list"></ul>
+      </div>
+
+      <div id="todoDetailCard" class="card hidden">
+        <div class="cardHeader">
+          <button id="btnTodoBack" class="btn btn--ghost" type="button">Back</button>
+          <div class="cardTitle" id="todoDetailDateLabel">—</div>
+          <div class="cardActions"></div>
+        </div>
+
+        <div class="inlineAdd">
+          <input id="todoNewText" class="input" placeholder="Add a task…" />
+          <button id="btnAddTodo" class="btn btn--primary" type="button">Add</button>
+        </div>
+
+        <ul id="todoList" class="list"></ul>
+      </div>
+    </section>
+
+    <!-- JOURNAL -->
+    <section id="view-journal" class="view hidden">
+      <div id="journalIndexCard" class="card">
+        <div class="cardHeader">
+          <div class="cardTitle">Journal</div>
+          <div class="cardActions">
+            <button id="btnJournalNewEntry" class="btn btn--primary" type="button">+</button>
+          </div>
+        </div>
+        <div class="field">
+  <input
+    id="journalSearchInput"
+    class="input"
+    placeholder="Search journals…"
+  />
+</div>
+        <ul id="journalDateList" class="list"></ul>
+      </div>
+
+      <div id="journalDetailCard" class="card hidden">
+        <div class="cardHeader">
+          <button id="btnJournalBack" class="btn btn--ghost" type="button">Back</button>
+          <div class="cardTitle" id="journalDetailDateLabel">—</div>
+          <div class="cardActions"></div>
+        </div>
+
+        <div class="field">
+          <label>Gratitude</label>
+          <textarea id="jGratitude" class="textarea autosize" rows="3"></textarea>
+        </div>
+        <div class="field">
+          <label>Objectives</label>
+          <textarea id="jObjectives" class="textarea autosize" rows="3"></textarea>
+        </div>
+        <div class="field">
+          <label>Reflections</label>
+          <textarea id="jReflections" class="textarea autosize" rows="4"></textarea>
+        </div>
+
+        <button id="btnSaveJournal" class="btn btn--ghost hidden" type="button">Save</button>
+      </div>
+    </section>
+
+    <!-- PROJECTS / ACTIONS -->
+    <section id="view-actions" class="view hidden">
+      <div class="card">
+        <div class="cardHeader">
+          <div class="segmented">
+            <button id="btnActionsViewProjects" class="segBtn" type="button" aria-pressed="true">Projects</button>
+            <button id="btnActionsViewActions" class="segBtn" type="button" aria-pressed="false">All actions</button>
+          </div>
+
+          <div class="cardActions">
+            <button id="btnAddProject" class="btn" type="button">+ Project</button>
+            <button id="btnAddAction" class="btn btn--primary" type="button">+ Action</button>
+          </div>
+        </div>
+
+        <div id="actionsProjectsWrap">
+          <div class="twoCol">
+            <div class="pane">
+              <div class="paneHeader">
+                <div class="paneTitle">Projects</div>
+              </div>
+              <ul id="projectList" class="list"></ul>
+              <div class="paneHeader" style="margin-top:12px">
+  <button id="btnToggleArchivedProjects" class="btn btn--ghost" type="button">
+    Show archived projects
+  </button>
+</div>
+
+<ul id="archivedProjectList" class="list hidden"></ul>
+            </div>
+
+            <div class="pane">
+              <div class="paneHeader">
+                <div class="paneTitle" id="projectTitle">Project</div>
+                <div class="muted" id="projectMeta">—</div>
+              </div>
+
+              <div class="field">
+                <label>Project notes</label>
+                <textarea id="projectNotes" class="textarea autosize" rows="4" placeholder="Notes for this project…"></textarea>
+              </div>
+
+              <div class="filterRow">
+                <div class="filterMulti">
+                  <button id="actionFilterPriorityBtn2" class="filterBtn" type="button">Priority</button>
+                  <div id="actionFilterPriorityPanel2" class="filterPanel hidden" tabindex="-1"></div>
+                </div>
+
+                <div class="filterMulti">
+                  <button id="actionFilterStatusBtn2" class="filterBtn" type="button">Status</button>
+                  <div id="actionFilterStatusPanel2" class="filterPanel hidden" tabindex="-1"></div>
+                </div>
+
+                <div class="filterSingle">
+                  <select id="actionSort2" class="select">
+                    <option value="dueAsc">Due (earliest)</option>
+                    <option value="dueDesc">Due (latest)</option>
+                    <option value="priorityDesc">Priority (high)</option>
+                    <option value="priorityAsc">Priority (low)</option>
+                    <option value="createdDesc">Created (newest)</option>
+                  </select>
+                </div>
+              </div>
+
+              <ul id="actionList2" class="list"></ul>
+            </div>
+          </div>
+        </div>
+
+        <div id="actionsActionsWrap" class="hidden">
+          <div class="filterRow">
+            <div class="filterMulti">
+              <button id="actionFilterProjectBtn" class="filterBtn" type="button">Project</button>
+              <div id="actionFilterProjectPanel" class="filterPanel hidden" tabindex="-1"></div>
+            </div>
+
+            <div class="filterMulti">
+              <button id="actionFilterPriorityBtn" class="filterBtn" type="button">Priority</button>
+              <div id="actionFilterPriorityPanel" class="filterPanel hidden" tabindex="-1"></div>
+            </div>
+
+            <div class="filterMulti">
+              <button id="actionFilterStatusBtn" class="filterBtn" type="button">Status</button>
+              <div id="actionFilterStatusPanel" class="filterPanel hidden" tabindex="-1"></div>
+            </div>
+
+            <div class="filterSingle">
+              <select id="actionSort" class="select">
+                <option value="dueAsc">Due (earliest)</option>
+                <option value="dueDesc">Due (latest)</option>
+                <option value="priorityDesc">Priority (high)</option>
+                <option value="priorityAsc">Priority (low)</option>
+                <option value="createdDesc">Created (newest)</option>
+              </select>
+            </div>
+
+            <button id="btnRefreshActions" class="btn btn--ghost" type="button">Refresh</button>
+          </div>
+
+          <ul id="actionList" class="list"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- HABITS -->
+    <section id="view-habits" class="view hidden">
+      <div class="card" id="habitsCard">
+        <div class="cardHeader">
+          <div class="cardTitle">Habits</div>
+          <div class="cardActions">
+            <input id="habitName" class="input" placeholder="Add a habit…" />
+            <select id="habitFreq" class="select">
+              <option value="Daily">Daily</option>
+              <option value="Weekdays">Weekdays</option>
+              <option value="Weekly">Weekly</option>
+            </select>
+            <button id="btnAddHabit" class="btn btn--primary" type="button">Add</button>
+            <button id="btnToggleHabits" class="btn btn--ghost" type="button">Hide habits</button>
+          </div>
+        </div>
+
+        <div class="filterRow">
+          <div class="segmented">
+            <button id="habitViewWeekly" class="segBtn" type="button" aria-pressed="true">Weekly</button>
+            <button id="habitViewMonthly" class="segBtn" type="button" aria-pressed="false">Monthly</button>
+          </div>
+
+          <input id="habitRefDate" class="input input--date" type="date" />
+          <select id="monthlyViewMode" class="select">
+            <option value="byHabit">Monthly (one habit)</option>
+            <option value="aggregate">Monthly (all habits)</option>
+          </select>
+          <div id="monthlyHabitSelectWrap" class="hidden">
+            <select id="monthlyHabitSelect" class="select"></select>
+          </div>
+        </div>
+
+        <div id="habitWeeklyWrap"></div>
+        <div id="habitMonthlyWrap" class="hidden"></div>
+
+        <div id="habitsListsWrap" class="twoCol">
+  <div class="pane">
+    <div class="paneHeader">
+      <div class="paneTitle">Active habits</div>
+      <button id="btnRefreshHabits" class="btn btn--ghost" type="button">Refresh</button>
+    </div>
+    <ul id="habitList" class="list"></ul>
+
+    <div class="paneHeader" style="margin-top:12px">
+      <div class="paneTitle">Archived</div>
+    </div>
+    <ul id="habitArchivedList" class="list"></ul>
+  </div>
+</div>
+      </div>
+    </section>
+
+    <!-- MEALS -->
+    <section id="view-meals" class="view hidden">
+      <div class="card">
+        <div class="cardHeader">
+          <div class="cardTitle">Meals</div>
+          <div class="cardActions">
+            <div class="segmented">
+              <button id="mealViewDaily" class="segBtn" type="button" aria-pressed="true">Daily</button>
+              <button id="mealViewWeekly" class="segBtn" type="button" aria-pressed="false">Weekly</button>
+            </div>
+            <input id="mealRefDate" class="input input--date" type="date" />
+            <button id="btnRefreshMeals" class="btn btn--ghost" type="button">Refresh</button>
+            <button id="btnToggleMeals" class="btn btn--ghost" type="button">Hide list</button>
+          </div>
+        </div>
+
+        <div class="twoCol mealsWrap">
+          <div class="pane">
+            <div class="paneHeader">
+              <div class="paneTitle">Meals list</div>
+            </div>
+            <div class="inlineAdd">
+              <input id="mealNewName" class="input" placeholder="Add a meal…" />
+              <button id="btnAddMeal" class="btn btn--primary" type="button">Add</button>
+            </div>
+            <div id="mealList" class="stack"></div>
+          </div>
+
+          <div class="pane">
+            <div id="mealDailyWrap"></div>
+            <div id="mealWeeklyWrap" class="hidden"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- NOTES -->
+    <section id="view-notes" class="view hidden">
+      <div id="notesIndexCard" class="card">
+        <div class="notesIndexHeader">
+  <button id="btnNewNote" class="btn btn--primary">New note</button>
+<input
+  id="notesSearchInput"
+  class="input"
+  placeholder="Search notes…"
+/>
+
+  <select id="notesProjectFilter">
+    <option value="">All projects</option>
+  </select>
+</div>
+
+        <div class="notesLayout">
+
+  <div class="notesCollections">
+    <ul id="collectionList"></ul>
+    <button id="btnAddCollection" class="btn btn--ghost">+ Collection</button>
+  </div>
+
+  <div class="notesMain">
+    <ul id="notesList"></ul>
+  </div>
+
+</div>
+
+        <ul id="notesList" class="list"></ul>
+      </div>
+
+      <div id="notesDetailCard" class="card hidden">
+        <div class="cardHeader">
+          <button id="btnNotesBack" class="btn btn--ghost" type="button">Back</button>
+          <div class="cardTitle">Edit note</div>
+          <div class="cardActions">
+            <button id="btnDeleteNote" class="btn btn--ghost" type="button">Delete</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Title</label>
+          <input id="noteTitle" class="input" />
+          <div class="noteMeta">
+  <select id="noteCollectionSelect"></select>
+  <select id="noteProjectSelect"></select>
+</div>
+
+        </div>
+
+        <div class="field">
+          <label>Body</label>
+          <div class="noteMeta">
+    </label>
+</div>
+          <textarea id="noteBody" class="textarea autosize" rows="8"></textarea>
+        </div>
+
+        <div class="muted">
+          Created: <span id="noteCreated">—</span> • Edited: <span id="noteUpdated">—</span>
+        </div>
+
+        <button id="btnSaveNote" class="btn btn--ghost hidden" type="button">Save</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Tabs menu -->
+  <div id="tabsMenu" class="menu hidden">
+    <div id="tabsMenuBackdrop" class="backdrop"></div>
+    <div class="menuCard">
+      <div class="menuTitle">Show/Hide tabs</div>
+      <div id="tabsMenuItems" class="menuItems"></div>
+      <button id="btnSaveTabsMenu" class="btn btn--primary" type="button">Save</button>
+    </div>
+  </div>
+
+  <!-- Theme modal -->
+  <div id="themeModal" class="modal hidden">
+    <div id="themeBackdrop" class="backdrop"></div>
+    <div class="modalCard">
+      <div class="modalHeader">
+        <div class="modalTitle">Theme & font</div>
+        <button id="btnCloseTheme" class="iconBtn" type="button">×</button>
+      </div>
+
+      <div class="field">
+        <label>Theme</label>
+        <select id="themeSelect" class="select">
+  <option value="aurora">Aurora</option>
+  <option value="graphite">Graphite</option>
+  <option value="midnight">Midnight Blue</option>
+  <option value="slate">Slate</option>
+  <option value="forest">Forest</option>
+  <option value="olive">Olive</option>
+  <option value="beige">Beige</option>
+  <option value="sandstone">Sandstone</option>
+  <option value="white">White</option>
+  <option value="rose">Rose Quartz</option>
+</select>
+
+      </div>
+
+      <div class="field">
+        <label>Font</label>
+        <select id="fontSelect" class="select">
+          <option value="system">System</option>
+          <option value="inter">Inter</option>
+          <option value="georgia">Georgia</option>
+          <option value="ibmplex">IBM Plex Sans</option>
+          <option value="mono">Monospace</option>
+        </select>
+      </div>
+
+      <button id="btnApplyTheme" class="btn btn--primary" type="button">Apply</button>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div id="settingsModal" class="modal hidden">
+    <div id="settingsBackdrop" class="backdrop"></div>
+    <div class="modalCard">
+      <div class="modalHeader">
+        <div class="modalTitle">Settings</div>
+        <button id="btnCloseSettings" class="iconBtn" type="button">×</button>
+      </div>
+
+      <div class="field">
+        <label>Export JSON</label>
+        <button id="btnExport" class="btn" type="button">Export</button>
+        <textarea id="exportArea" class="textarea" rows="6" readonly></textarea>
+      </div>
+
+      <div class="field">
+        <label>Import JSON</label>
+        <input id="importFile" type="file" accept="application/json" />
+        <button id="btnImport" class="btn" type="button">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account modal -->
+  <div id="accountModal" class="modal hidden">
+    <div id="accountBackdrop" class="backdrop"></div>
+    <div class="modalCard">
+      <div class="modalHeader">
+        <div class="modalTitle">Account</div>
+        <button id="btnCloseAccount" class="iconBtn" type="button">×</button>
+      </div>
+
+      <div class="field">
+        <label>Email</label>
+        <input id="authEmail" class="input" autocomplete="username" />
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input id="authPassword" class="input" type="password" autocomplete="current-password" />
+      </div>
+
+      <div class="row">
+        <button id="btnSignIn" class="btn btn--primary" type="button">Sign in</button>
+        <button id="btnSignUp" class="btn" type="button">Sign up</button>
+        <button id="btnSignOut" class="btn btn--ghost" type="button">Sign out</button>
+      </div>
+
+      <div id="authStatus" class="muted">Not signed in.</div>
+    </div>
+  </div>
+
+  <!-- Export PDF modal -->
+  <div id="exportPdfModal" class="modal hidden">
+    <div id="exportPdfBackdrop" class="backdrop"></div>
+    <div class="modalCard">
+      <div class="modalHeader">
+        <div class="modalTitle">Export PDF</div>
+        <button id="btnCloseExportPdf" class="iconBtn" type="button">×</button>
+      </div>
+
+      <div class="checkRow"><label><input id="expTodo" type="checkbox" checked /> To-dos</label></div>
+      <div class="checkRow"><label><input id="expJournal" type="checkbox" checked /> Journal</label></div>
+      <div class="checkRow"><label><input id="expActions" type="checkbox" checked /> Projects & actions</label></div>
+      <div class="checkRow"><label><input id="expMeals" type="checkbox" checked /> Meals</label></div>
+      <div class="checkRow"><label><input id="expNotes" type="checkbox" checked /> Notes</label></div>
+
+      <button id="btnRunPdfExport" class="btn btn--primary" type="button">Export</button>
+    </div>
+  </div>
+
+  <!-- To-do new list modal -->
+  <div id="todoNewListModal" class="modal hidden">
+    <div id="todoNewListBackdrop" class="backdrop"></div>
+    <div class="modalCard">
+      <div class="modalHeader">
+        <div class="modalTitle">Create to-do list</div>
+        <button id="btnCloseTodoNewList" class="iconBtn" type="button">×</button>
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input id="todoNewListDate" class="input input--date" type="date" />
+      </div>
+      <button id="btnCreateTodoList" class="btn btn--primary" type="button">Create</button>
+    </div>
+  </div>
+
+  <!-- Journal new entry modal -->
+  <div id="journalNewEntryModal" class="modal hidden">
+    <div id="journalNewEntryBackdrop" class="backdrop"></div>
+    <div class="modalCard">
+      <div class="modalHeader">
+        <div class="modalTitle">Create journal entry</div>
+        <button id="btnCloseJournalNewEntry" class="iconBtn" type="button">×</button>
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input id="journalNewEntryDate" class="input input--date" type="date" />
+      </div>
+      <button id="btnCreateJournalEntry" class="btn btn--primary" type="button">Create</button>
+    </div>
+  </div>
+
+  <!-- Action modal -->
+  <div id="actionModal" class="modal hidden">
+    <div id="actionBackdrop" class="backdrop"></div>
+    <div class="modalCard">
+      <div class="modalHeader">
+        <div id="actionModalTitle" class="modalTitle">New action</div>
+        <button id="btnCloseActionModal" class="iconBtn" type="button">×</button>
+      </div>
+
+      <div class="field">
+        <label>Title</label>
+        <input id="modalActionTitle" class="input" />
+      </div>
+
+      <div class="field">
+        <label>Project</label>
+        <select id="modalActionProject" class="select"></select>
+      </div>
+
+      <div class="field">
+        <label>Due date</label>
+        <input id="modalActionDue" class="input input--date" type="date" />
+      </div>
+
+      <div class="field">
+        <label>Priority</label>
+        <select id="modalActionPriority" class="select">
+          <option>Low</option>
+          <option>Medium</option>
+          <option>High</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Status</label>
+        <select id="modalActionStatus" class="select">
+          <option>Open</option>
+          <option>In Progress</option>
+          <option>Completed</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Notes</label>
+        <textarea id="modalActionNotes" class="textarea autosize" rows="4"></textarea>
+      </div>
+
+      <div class="row">
+        <button id="btnSaveModalAction" class="btn btn--primary" type="button">Save</button>
+        <button id="btnDeleteAction" class="btn btn--ghost hidden" type="button">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Meal modal -->
+  <div id="mealModal" class="modal hidden">
+    <div id="mealBackdrop" class="backdrop"></div>
+    <div class="modalCard">
+      <div class="modalHeader">
+        <div class="modalTitle">Meal</div>
+        <button id="btnCloseMealModal" class="iconBtn" type="button">×</button>
+      </div>
+
+      <div class="field">
+        <label>Name</label>
+        <input id="mealModalName" class="input" />
+      </div>
+
+      <div class="field">
+        <label>Notes</label>
+        <textarea id="mealModalNotes" class="textarea autosize" rows="6" placeholder="Ingredients, macros, prep notes…"></textarea>
+      </div>
+
+      <div class="row">
+        <button id="btnSaveMealModal" class="btn btn--primary" type="button">Save</button>
+        <button id="btnDeleteMealModal" class="btn btn--ghost" type="button">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="collectionModal" class="modal hidden">
+  <div class="backdrop" id="collectionBackdrop"></div>
+  <div class="modalCard">
+    <div class="modalHeader">
+      <div class="modalTitle" id="collectionModalTitle">New collection</div>
+      <button class="iconBtn" id="btnCloseCollectionModal">×</button>
+    </div>
+
+    <div class="field">
+      <label for="collectionNameInput">Collection name</label>
+      <input id="collectionNameInput" class="input" type="text" />
+    </div>
+
+    <div class="modalActions">
+      <button class="btn btn--primary" id="btnSaveCollection">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="projectModal" class="modal hidden">
+  <div class="backdrop" id="projectBackdrop"></div>
+  <div class="modalCard">
+    <div class="modalHeader">
+      <div class="modalTitle">New project</div>
+      <button class="iconBtn" id="btnCloseProjectModal">×</button>
+    </div>
+
+    <div class="field">
+      <label>Project name</label>
+      <input id="projectNameInput" class="input" />
+    </div>
+
+    <div class="field">
+      <label>Notes</label>
+      <textarea id="projectNotesInput" class="textarea autosize"></textarea>
+    </div>
+
+    <button class="btn btn--primary" id="btnSaveProject">Save</button>
+  </div>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<!-- Firebase init -->
+<script src="firebase.js"></script>
+
+<!-- Local DB + sync -->
+
+<!-- Confirm modal (generic) -->
+<div id="confirmModal" class="modal hidden">
+  <div class="backdrop" id="confirmBackdrop"></div>
+  <div class="modalCard">
+    <div class="modalHeader">
+      <div class="modalTitle" id="confirmTitle">Confirm</div>
+      <button class="iconBtn" id="btnCloseConfirm">×</button>
+    </div>
+
+    <div class="field">
+      <div id="confirmMessage"></div>
+    </div>
+
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn btn--ghost" id="btnConfirmCancel">Cancel</button>
+      <button class="btn btn--primary" id="btnConfirmOk">OK</button>
+    </div>
+  </div>
+</div>
+
+
+<script src="db.js"></script>
+<script src="sync.js"></script>
+
+<!-- App logic (LAST) -->
+<script src="app.js"></script>
+
+</body>
+
+</html>
