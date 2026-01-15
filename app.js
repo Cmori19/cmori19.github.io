@@ -138,6 +138,74 @@ const avgStress = $("avgStress");
   const journalMood = $("journalMood");
 const journalEnergy = $("journalEnergy");
 const journalStress = $("journalStress");
+// -----------------------------
+// Reflections (tagged)
+// -----------------------------
+const journalReflections = $("journalReflections");
+const journalReflectionsList = $("journalReflectionsList");
+const journalReflectionsEmpty = $("journalReflectionsEmpty");
+const btnAddReflection = $("btnAddReflection");
+const reflectionTagChooser = $("reflectionTagChooser");
+const reflectionTagOptions = $("reflectionTagOptions");
+
+btnAddReflection?.addEventListener("click", (e) => {
+  e.stopPropagation();
+
+  if (!reflectionTagChooser || !reflectionTagOptions) return;
+
+  const used = new Set(Object.keys(currentReflections));
+  const available = REFLECTION_TAGS.filter(t => !used.has(t));
+
+  reflectionTagOptions.innerHTML = "";
+
+  if (!available.length) {
+    reflectionTagOptions.innerHTML =
+      `<div class="muted">All reflection areas already added.</div>`;
+  } else {
+    for (const tag of available) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pill";
+      btn.textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
+
+      btn.addEventListener("click", () => {
+        currentReflections[tag] = "";
+        reflectionTagChooser.classList.add("hidden");
+        renderReflectionSections();
+
+        debounce("journal_autosave", 300, autosaveJournal);
+
+        // Focus the new textarea
+        setTimeout(() => {
+          const fields = journalReflectionsList.querySelectorAll("textarea");
+          const last = fields[fields.length - 1];
+          last?.focus();
+        }, 0);
+      });
+
+      reflectionTagOptions.appendChild(btn);
+    }
+  }
+
+  reflectionTagChooser.classList.toggle("hidden");
+});
+
+document.addEventListener("click", () => {
+  reflectionTagChooser?.classList.add("hidden");
+});
+
+
+
+const REFLECTION_TAGS = [
+  "general",
+  "work",
+  "fitness",
+  "social",
+  "relationships",
+  "sleep",
+  "money"
+];
+
   const btnSaveJournal = $("btnSaveJournal"); // hidden now, but keep for compatibility
   const btnJournalBack = $("btnJournalBack");
   const btnJournalNewEntry = $("btnJournalNewEntry");
@@ -341,6 +409,8 @@ btnSaveProject?.addEventListener("click", async () => {
   let dashboardPeriod = "Week";
   let mealsListHidden = false;
   let habitsHidden = false;
+  let currentReflections = {};
+
 
   // Rollover modal state
 let rolloverView = "days"; // "days" | "items"
@@ -2048,9 +2118,52 @@ journalDateList.appendChild(li);
   async function loadJournalDetail() {
     if (!currentJournalDate) return;
     const rec = (await window.DB.getOne(window.DB.STORES.journal, currentJournalDate));
+    // Initialise tagged reflections state
+currentReflections = rec?.reflections && typeof rec.reflections === "object"
+  ? { ...rec.reflections }
+  : {};
+
+renderReflectionSections();
+
     jGratitude.value = rec?.gratitude || "";
     jObjectives.value = rec?.objectives || "";
-    jReflections.value = rec?.reflections || "";
+    // -----------------------------
+// TEMP: render tagged reflections (read-only for now)
+// -----------------------------
+const reflections = rec?.reflections || {};
+
+const orderedTags = [
+  "general",
+  "work",
+  "fitness",
+  "social",
+  "relationships",
+  "sleep",
+  "money"
+];
+
+for (const tag of orderedTags) {
+  if (!reflections[tag]) continue;
+
+  const ta = document.createElement("textarea");
+  ta.className = "textarea autosize";
+  ta.rows = 3;
+  ta.value = reflections[tag];
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "field";
+
+  const label = document.createElement("label");
+  label.textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
+
+  wrapper.appendChild(label);
+  wrapper.appendChild(ta);
+
+  jReflections.parentElement.appendChild(wrapper);
+
+  autosizeTextarea(ta);
+}
+
     journalMood.value = rec?.mood ?? "";
 journalEnergy.value = rec?.energy ?? "";
 journalStress.value = rec?.stress ?? "";
@@ -2061,11 +2174,14 @@ journalStress.value = rec?.stress ?? "";
 
   async function autosaveJournal() {
     if (!currentJournalDate) return;
+    // TEMP: tagged reflections saving will be added in Step 4
+const reflections = { ...currentReflections };
+
     await window.DB.upsertJournal({
   date: currentJournalDate,
   gratitude: jGratitude.value,
   objectives: jObjectives.value,
-  reflections: jReflections.value,
+  reflections: reflections,
   mood: journalMood.value ? Number(journalMood.value) : null,
   energy: journalEnergy.value ? Number(journalEnergy.value) : null,
   stress: journalStress.value ? Number(journalStress.value) : null
@@ -2118,6 +2234,72 @@ journalStress.value = rec?.stress ?? "";
   return (await window.DB.getAll(window.DB.STORES.projects))
     .filter(p => !p._deleted && !p.archived)
     .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+}
+
+function renderReflectionSections() {
+  if (!journalReflectionsList || !journalReflectionsEmpty) return;
+
+  journalReflectionsList.innerHTML = "";
+
+  const tags = Object.keys(currentReflections);
+
+  // Empty state
+  journalReflectionsEmpty.classList.toggle("hidden", tags.length > 0);
+
+  for (const tag of REFLECTION_TAGS) {
+    if (!(tag in currentReflections)) continue;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "field";
+
+    const labelRow = document.createElement("div");
+    labelRow.style.display = "flex";
+    labelRow.style.justifyContent = "space-between";
+    labelRow.style.alignItems = "center";
+
+    const label = document.createElement("label");
+    label.textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "btn btn--ghost";
+    removeBtn.textContent = "×";
+    removeBtn.title = "Remove reflection";
+
+    labelRow.appendChild(label);
+    labelRow.appendChild(removeBtn);
+
+    const ta = document.createElement("textarea");
+    ta.className = "textarea autosize";
+    ta.rows = 3;
+    ta.value = currentReflections[tag] || "";
+
+    ta.addEventListener("input", () => {
+      currentReflections[tag] = ta.value;
+      debounce("journal_autosave", 300, autosaveJournal);
+      autosizeTextarea(ta);
+    });
+
+    removeBtn.addEventListener("click", async () => {
+      if (ta.value.trim()) {
+        const ok = await confirmInApp({
+          title: "Remove reflection",
+          message: `Remove ${label.textContent} reflection?`
+        });
+        if (!ok) return;
+      }
+
+      delete currentReflections[tag];
+      renderReflectionSections();
+      debounce("journal_autosave", 300, autosaveJournal);
+    });
+
+    wrapper.appendChild(labelRow);
+    wrapper.appendChild(ta);
+    journalReflectionsList.appendChild(wrapper);
+
+    autosizeTextarea(ta);
+  }
 }
 
 
