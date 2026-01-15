@@ -173,10 +173,44 @@
           <label>Objectives</label>
           <textarea id="jObjectives" class="textarea autosize" rows="3"></textarea>
         </div>
-        <div class="field">
-          <label>Reflections</label>
-          <textarea id="jReflections" class="textarea autosize" rows="4"></textarea>
-        </div>
+        <!-- =========================
+     Reflections (tagged)
+========================= -->
+
+<div id="journalReflections" class="field">
+  <label>Reflections</label>
+
+  <!-- Empty state -->
+  <div id="journalReflectionsEmpty" class="muted">
+    No reflections yet.
+  </div>
+
+  <!-- Tagged reflection sections will be inserted here -->
+  <div id="journalReflectionsList"></div>
+
+  <!-- Add reflection button -->
+  <button
+    id="btnAddReflection"
+    class="btn btn--ghost"
+    type="button"
+    style="margin-top:8px"
+  >
+    + Add reflection
+  </button>
+  <!-- Reflection tag chooser -->
+<div
+  id="reflectionTagChooser"
+  class="hidden"
+  style="margin-top:8px"
+>
+  <div class="muted" style="margin-bottom:6px">
+    Add reflection for:
+  </div>
+
+  <div id="reflectionTagOptions" class="row"></div>
+</div>
+
+</div>
 
         <div class="journalSliders">
 
