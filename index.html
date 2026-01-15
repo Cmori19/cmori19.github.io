@@ -54,16 +54,47 @@
             </div>
             <div class="metricValue" id="mTodoWeek">—</div>
             <div class="metricSub muted">Today: <span id="mTodoToday">—</span></div>
-          </div>
+                      </div>
+          
+          <div class="metricCard" id="metricOpenTasks">
+  <div class="metricTop">
+    <div class="metricTitle">Open tasks today</div>
+    <div class="muted">Today</div>
+  </div>
+  <div class="metricValue" id="mOpenToday">—</div>
+</div>
 
-          <div class="metricCard">
+          <div class="metricCard" id="metricHabits">
             <div class="metricTop">
               <div class="metricTitle">Habit consistency</div>
               <div id="mHabitPeriodLabel" class="muted">This week</div>
             </div>
             <div class="metricValue" id="mHabitWeek">—</div>
-            <div class="metricSub muted">Open tasks today: <span id="mOpenToday">—</span></div>
           </div>
+  <div class="metricCard" id="metricJournal">
+            <div class="metricTop">
+    <div class="metricTitle">Journal completion</div>
+    <div id="mJournalPeriodLabel" class="muted">This week</div>
+  </div>
+  <div class="metricValue" id="mJournalRate">—</div>
+  <div class="metricSub muted">Days with entries</div>
+</div>
+<div class="metricCircles">
+  <div class="metricCircle" id="circleMood">
+    <div class="circleLabel">Mood</div>
+    <div class="circleValue" id="avgMood">—</div>
+  </div>
+
+  <div class="metricCircle" id="circleEnergy">
+    <div class="circleLabel">Energy</div>
+    <div class="circleValue" id="avgEnergy">—</div>
+  </div>
+
+  <div class="metricCircle" id="circleStress">
+    <div class="circleLabel">Stress</div>
+    <div class="circleValue" id="avgStress">—</div>
+  </div>
+</div>
         </div>
       </div>
     </section>
@@ -146,6 +177,46 @@
           <label>Reflections</label>
           <textarea id="jReflections" class="textarea autosize" rows="4"></textarea>
         </div>
+
+        <div class="journalSliders">
+
+  <div class="journalSlider">
+    <label>Mood</label>
+
+    <div class="sliderScale">
+      <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+      <span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
+    </div>
+
+    <input id="journalMood" type="range" min="1" max="10" step="1" />
+  </div>
+
+  <div class="journalSlider">
+    <label>Energy</label>
+
+    <div class="sliderScale">
+      <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+      <span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
+    </div>
+
+    <input id="journalEnergy" type="range" min="1" max="10" step="1" />
+  </div>
+
+  <div class="journalSlider">
+    <label>Stress</label>
+
+    <div class="sliderScale">
+      <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
+      <span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
+    </div>
+
+    <input id="journalStress" type="range" min="1" max="10" step="1" />
+  </div>
+
+</div>
+
+</div>
+
 
         <button id="btnSaveJournal" class="btn btn--ghost hidden" type="button">Save</button>
       </div>
@@ -279,13 +350,7 @@
           </div>
 
           <input id="habitRefDate" class="input input--date" type="date" />
-          <select id="monthlyViewMode" class="select">
-            <option value="byHabit">Monthly (one habit)</option>
-            <option value="aggregate">Monthly (all habits)</option>
-          </select>
-          <div id="monthlyHabitSelectWrap" class="hidden">
-            <select id="monthlyHabitSelect" class="select"></select>
-          </div>
+          <!-- Monthly habit filters removed -->
         </div>
 
         <div id="habitWeeklyWrap"></div>
@@ -364,7 +429,10 @@
 
   <div class="notesCollections">
     <ul id="collectionList"></ul>
-    <button id="btnAddCollection" class="btn btn--ghost">+ Collection</button>
+<button id="btnAddCollection" class="btn btn--ghost">+ Collection</button>
+<button id="btnToggleArchivedCollections" class="btn btn--ghost">
+  Show archived collections
+</button>
   </div>
 
   <div class="notesMain">
@@ -658,9 +726,12 @@
       <input id="collectionNameInput" class="input" type="text" />
     </div>
 
-    <div class="modalActions">
-      <button class="btn btn--primary" id="btnSaveCollection">Save</button>
-    </div>
+    <div class="modalActions" style="display:flex; gap:8px; justify-content:flex-end">
+  <button class="btn btn--ghost" id="btnArchiveCollection">Archive</button>
+  <button class="btn btn--ghost" id="btnDeleteCollection">Delete</button>
+  <button class="btn btn--primary" id="btnSaveCollection">Save</button>
+</div>
+
   </div>
 </div>
 
@@ -713,6 +784,20 @@
       <button class="btn btn--ghost" id="btnConfirmCancel">Cancel</button>
       <button class="btn btn--primary" id="btnConfirmOk">OK</button>
     </div>
+  </div>
+</div>
+
+<!-- Rollover analysis modal -->
+<div id="rolloverModal" class="modal hidden">
+  <div class="backdrop" id="rolloverBackdrop"></div>
+
+  <div class="modalCard">
+    <div class="modalHeader">
+      <div class="modalTitle">Missed to-dos</div>
+      <button class="iconBtn" id="btnCloseRollover" type="button">×</button>
+    </div>
+
+    <div id="rolloverContent" class="stack"></div>
   </div>
 </div>
 
