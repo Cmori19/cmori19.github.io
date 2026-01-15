@@ -342,6 +342,20 @@ body{
   grid-template-columns:140px repeat(7, minmax(140px, 1fr));
   gap:8px;
 }
+
+/* === Habits weekly grid (match meals weekly layout) === */
+
+.habitGrid--weekly{
+  display:grid;
+  grid-template-columns:140px repeat(7, minmax(140px, 1fr));
+  gap:8px;
+}
+
+#habitWeeklyWrap{
+  overflow-x:auto;
+  padding-bottom:8px;
+}
+
 #mealWeeklyWrap{
   overflow-x:auto;
   padding-bottom:8px;
@@ -497,5 +511,110 @@ select,
 option {
   background-color: var(--card);
   color: var(--text);
+}
+
+.mealSlotHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mealAddBtn {
+  padding: 4px 10px;
+  font-weight: 700;
+}
+
+.metricCard {
+  pointer-events: auto !important;
+}
+
+/* =========================
+   Journal sliders
+========================= */
+
+.journalSliders {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+@media (max-width: 700px) {
+  .journalSliders {
+    grid-template-columns: 1fr;
+  }
+}
+
+.journalSlider label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+
+.journalSlider input[type="range"] {
+  width: 100%;
+}
+
+
+/* =========================
+   Dashboard wellbeing circles
+========================= */
+
+.metricCircles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 20px;
+}
+
+@media (max-width: 700px) {
+  .metricCircles {
+    grid-template-columns: 1fr;
+  }
+}
+
+.metricCircle {
+  border-radius: 50%;
+  aspect-ratio: 1 / 1;
+  background: #9ca3af; /* default when no data */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+
+
+.circleLabel {
+  font-size: 12px;
+  color: white;
+  opacity: 0.9;
+}
+
+.circleValue {
+  font-size: 28px;
+  font-weight: 800;
+  color: white;
+}
+
+/* Slider scale numbers */
+.journalSlider datalist {
+  display: flex;
+  justify-content: space-between;
+}
+
+.journalSlider option {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.sliderScale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+  user-select: none;
 }
 
