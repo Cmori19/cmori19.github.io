@@ -2029,91 +2029,83 @@ right.appendChild(delBtn);
 
 
   async function refreshJournalIndex() {
-    showJournalIndex();
-    if (journalSearchInput) {
-  journalSearchInput.value = journalSearchText;
-}
-    const all = await window.DB.getAll(window.DB.STORES.journal);
-    const dates = all
-  .filter(x => {
-    if (x._deleted) return false;
+  showJournalIndex();
 
-    const text =
-      ((x.gratitude || "") +
-       (x.objectives || "") +
-       (x.reflections || "")).toLowerCase();
-
-    if (text.trim().length === 0) return false;
-
-    if (journalSearchText) {
-      return text.includes(journalSearchText);
-    }
-
-    return true;
-  })
-  .map(x => x.date)
-  .sort((a, b) => b.localeCompare(a));
-
-
-    journalDateList.innerHTML = "";
-
-    if (!dates.length) {
-      const li = document.createElement("li");
-      li.innerHTML = `<div class="list__left"><div class="muted">No journal entries yet.</div></div>`;
-      journalDateList.appendChild(li);
-      return;
-    }
-
-    for (const d of dates) {
-      const rec = all.find(x => !x._deleted && x.date === d);
-      const preview = (rec?.reflections || rec?.objectives || rec?.gratitude || "").slice(0, 64);
-      const li = document.createElement("li");
-
-li.innerHTML = `
-  <div class="list__left">
-    <div class="titleClamp">
-      <div><strong>${isoToDDMMYYYY(d)}</strong></div>
-      <div class="muted">${preview ? escapeHtml(preview) + (preview.length === 64 ? "…" : "") : "—"}</div>
-    </div>
-  </div>
-  <div class="list__right"></div>
-`;
-
-// Delete button
-const delBtn = document.createElement("button");
-delBtn.type = "button";
-delBtn.className = "iconBtn";
-delBtn.title = "Delete journal entry";
-delBtn.textContent = "🗑";
-
-delBtn.addEventListener("click", async (ev) => {
-  ev.stopPropagation();
-  const ok = await confirmInApp({
-  title: "Delete journal entry",
-  message: "Delete this journal entry?"
-});
-if (!ok) return;
-
-  if (!ok) return;
-
-  const rec = await window.DB.getOne(window.DB.STORES.journal, d);
-  if (!rec) return;
-
-  await window.DB.deleteJournal(d);
-
-  await refreshJournalIndex();
-  await refreshDashboard();
-});
-
-li.querySelector(".list__right").appendChild(delBtn);
-
-// Click row to open entry
-li.addEventListener("click", () => showJournalDetail(d));
-
-journalDateList.appendChild(li);
-
-    }
+  if (journalSearchInput) {
+    journalSearchInput.value = journalSearchText;
   }
+
+  const all = await window.DB.getAll(window.DB.STORES.journal);
+
+  const dates = all
+    .filter(j => !j._deleted)
+    .map(j => j.date)
+    .sort((a, b) => b.localeCompare(a));
+
+  journalDateList.innerHTML = "";
+
+  if (!dates.length) {
+    const li = document.createElement("li");
+    li.innerHTML = `<div class="list__left"><div class="muted">No journal entries yet.</div></div>`;
+    journalDateList.appendChild(li);
+    return;
+  }
+
+  for (const d of dates) {
+    const rec = all.find(j => !j._deleted && j.date === d);
+    if (!rec) continue;
+
+    const preview =
+      (typeof rec.gratitude === "string" && rec.gratitude.trim()) ||
+      (typeof rec.objectives === "string" && rec.objectives.trim()) ||
+      (
+        rec.reflections &&
+        typeof rec.reflections === "object" &&
+        Object.values(rec.reflections).find(
+          v => typeof v === "string" && v.trim()
+        )
+      ) ||
+      "";
+
+    const li = document.createElement("li");
+
+    li.innerHTML = `
+      <div class="list__left">
+        <div class="titleClamp">
+          <div><strong>${isoToDDMMYYYY(d)}</strong></div>
+          <div class="muted">${preview ? escapeHtml(String(preview).slice(0, 64)) : "—"}</div>
+        </div>
+      </div>
+      <div class="list__right"></div>
+    `;
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "iconBtn";
+    delBtn.title = "Delete journal entry";
+    delBtn.textContent = "🗑";
+
+    delBtn.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      const ok = await confirmInApp({
+        title: "Delete journal entry",
+        message: "Delete this journal entry?"
+      });
+      if (!ok) return;
+
+      await window.DB.deleteJournal(d);
+      await refreshJournalIndex();
+      await refreshDashboard();
+    });
+
+    li.querySelector(".list__right").appendChild(delBtn);
+
+    li.addEventListener("click", () => showJournalDetail(d));
+
+    journalDateList.appendChild(li);
+  }
+}
+
 
   async function loadJournalDetail() {
     if (!currentJournalDate) return;
@@ -2173,20 +2165,29 @@ journalStress.value = rec?.stress ?? "";
   }
 
   async function autosaveJournal() {
-    if (!currentJournalDate) return;
-    // TEMP: tagged reflections saving will be added in Step 4
-const reflections = { ...currentReflections };
+  if (!currentJournalDate) return;
 
-    await window.DB.upsertJournal({
-  date: currentJournalDate,
-  gratitude: jGratitude.value,
-  objectives: jObjectives.value,
-  reflections: reflections,
-  mood: journalMood.value ? Number(journalMood.value) : null,
-  energy: journalEnergy.value ? Number(journalEnergy.value) : null,
-  stress: journalStress.value ? Number(journalStress.value) : null
-});
+  const payload = {
+    date: currentJournalDate,
+    gratitude: jGratitude.value,
+    objectives: jObjectives.value,
+    mood: journalMood.value ? Number(journalMood.value) : null,
+    energy: journalEnergy.value ? Number(journalEnergy.value) : null,
+    stress: journalStress.value ? Number(journalStress.value) : null
+  };
+
+  // 🔒 Only write reflections if user has actually added/edited them
+  if (
+    currentReflections &&
+    typeof currentReflections === "object" &&
+    Object.keys(currentReflections).length > 0
+  ) {
+    payload.reflections = { ...currentReflections };
   }
+
+  await window.DB.upsertJournal(payload);
+}
+
 
   [jGratitude, jObjectives, jReflections].forEach((el) => {
     if (!el) return;
