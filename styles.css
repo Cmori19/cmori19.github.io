@@ -704,7 +704,6 @@ body{
   justify-content: stretch; /* override generic list rule */
 }
 
-/* Full-width row */
 .noteRow {
   width: 100%;
   display: grid;
@@ -712,6 +711,24 @@ body{
   align-items: center;
   column-gap: 16px;
 }
+
+/* === iPhone / small screens: stack note metadata === */
+@media (max-width: 600px) {
+  .noteRow {
+    grid-template-columns: 1fr;
+    row-gap: 4px;
+  }
+
+  .noteCol--project {
+    text-align: left;
+  }
+
+  .noteCol--date {
+    text-align: left;
+    font-size: 11px;
+  }
+}
+
 
 /* Title: left, flexible */
 .noteCol--title {
@@ -1128,7 +1145,6 @@ option {
   justify-content: stretch; /* override generic list rule */
 }
 
-/* Full-width row */
 .noteRow {
   width: 100%;
   display: grid;
@@ -1136,6 +1152,24 @@ option {
   align-items: center;
   column-gap: 16px;
 }
+
+/* === iPhone / small screens: stack note metadata === */
+@media (max-width: 600px) {
+  .noteRow {
+    grid-template-columns: 1fr;
+    row-gap: 4px;
+  }
+
+  .noteCol--project {
+    text-align: left;
+  }
+
+  .noteCol--date {
+    text-align: left;
+    font-size: 11px;
+  }
+}
+
 
 /* Title: left, flexible */
 .noteCol--title {
@@ -1234,12 +1268,30 @@ option {
 .metricCircle {
   border-radius: 50%;
   aspect-ratio: 1 / 1;
-  background: #9ca3af; /* default when no data */
+  background: #9ca3af;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
+  max-width: 160px;
+  margin: 0 auto;
 }
+
+/* === iPhone: smaller circles === */
+@media (max-width: 600px) {
+  .metricCircles {
+    grid-template-columns: repeat(3, minmax(80px, 1fr));
+  }
+
+  .metricCircle {
+    max-width: 110px;
+  }
+
+  .circleValue {
+    font-size: 22px;
+  }
+}
+
 
 
 
