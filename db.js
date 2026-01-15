@@ -216,20 +216,48 @@
   async function archiveProject(id) {
   const p = await getOne(STORES.projects, id);
   if (!p || p._deleted) return null;
+
+  // Archive project
   p.archived = true;
   p.updatedAt = nowTs();
   await put(STORES.projects, p);
+
+  // Archive all notes linked to this project
+  const notes = await getAll(STORES.notes);
+  for (const n of notes) {
+    if (!n._deleted && n.projectId === id) {
+      n.archived = true;
+      n.updatedAt = nowTs();
+      await put(STORES.notes, n);
+    }
+  }
+
   return p;
 }
+
 
 async function unarchiveProject(id) {
   const p = await getOne(STORES.projects, id);
   if (!p || p._deleted) return null;
+
+  // Unarchive project
   p.archived = false;
   p.updatedAt = nowTs();
   await put(STORES.projects, p);
+
+  // Unarchive notes linked to this project
+  const notes = await getAll(STORES.notes);
+  for (const n of notes) {
+    if (!n._deleted && n.projectId === id) {
+      n.archived = false;
+      n.updatedAt = nowTs();
+      await put(STORES.notes, n);
+    }
+  }
+
   return p;
 }
+
 
   async function upsertAction(input) {
     const id = input.id || uid();
@@ -238,9 +266,11 @@ async function unarchiveProject(id) {
     const rec = existing && !existing._deleted ? existing : {
   id,
   createdAt: nowTs(),
-  ownerUid: currentUid(), // 🔑 ADD THIS
+  ownerUid: currentUid(),
+  archived: false,
   _deleted: false
 };
+
 
 
     rec.title = input.title || rec.title || "";
@@ -420,21 +450,50 @@ async function deleteJournal(date) {
 
 
   async function rolloverTodosToToday(todayISO) {
+  // Work out yesterday explicitly
+  const today = new Date(todayISO);
+  today.setHours(0, 0, 0, 0);
+
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  const yesterdayISO =
+    `${yesterday.getFullYear()}-` +
+    `${String(yesterday.getMonth() + 1).padStart(2, "0")}-` +
+    `${String(yesterday.getDate()).padStart(2, "0")}`;
+
   const todos = await getAll(STORES.todos);
+
+  const toMove = [];
 
   for (const t of todos) {
     if (t._deleted) continue;
-    if (t.status === "Completed") continue;
     if (!t.date) continue;
-    if (t.date >= todayISO) continue;
+    if (t.date !== yesterdayISO) continue;
+    if (t.status === "Completed") continue;
 
+    toMove.push(t);
+  }
+
+  if (!toMove.length) return;
+
+  // Perform writes in a controlled sequence
+  for (const t of toMove) {
+    if (!Array.isArray(t.rolloverFailures)) {
+      t.rolloverFailures = [];
+    }
+
+    t.rolloverFailures.push(yesterdayISO);
     t.date = todayISO;
     t.updatedAt = nowTs();
+
     await put(STORES.todos, t);
   }
 
   await ensureTodoList(todayISO);
 }
+
+
 
 
   async function syncTodosFromAction(actionId) {
@@ -474,6 +533,9 @@ async function deleteJournal(date) {
   rec.gratitude = input.gratitude ?? rec.gratitude ?? "";
   rec.objectives = input.objectives ?? rec.objectives ?? "";
   rec.reflections = input.reflections ?? rec.reflections ?? "";
+  rec.mood = input.mood ?? rec.mood ?? null;
+rec.energy = input.energy ?? rec.energy ?? null;
+rec.stress = input.stress ?? rec.stress ?? null;
   rec.updatedAt = nowTs();
 
   await put(STORES.journal, rec);
@@ -662,8 +724,72 @@ async function deleteJournal(date) {
   }
 
   async function init() {
-    db = await openDb();
+  db = await openDb();
+
+  // Ensure collections have archived flag
+  const collections = await getAll(STORES.collections);
+  for (const c of collections) {
+    if (typeof c.archived !== "boolean") {
+      c.archived = false;
+      c.updatedAt = nowTs();
+      await put(STORES.collections, c);
+    }
   }
+
+  // Ensure notes have archived flag
+  const notes = await getAll(STORES.notes);
+  for (const n of notes) {
+    if (typeof n.archived !== "boolean") {
+      n.archived = false;
+      n.updatedAt = nowTs();
+      await put(STORES.notes, n);
+    }
+  }
+}
+
+
+
+  // ===============================
+// Collections helpers
+// ===============================
+
+async function archiveCollection(id) {
+  const c = await getOne(STORES.collections, id);
+  if (!c || c._deleted) return;
+  c.archived = true;
+  c.updatedAt = nowTs();
+  await put(STORES.collections, c);
+}
+
+async function unarchiveCollection(id) {
+  const c = await getOne(STORES.collections, id);
+  if (!c || c._deleted) return;
+  c.archived = false;
+  c.updatedAt = nowTs();
+  await put(STORES.collections, c);
+}
+
+async function deleteCollection(id) {
+  const c = await getOne(STORES.collections, id);
+  if (!c || c._deleted) return;
+
+  // Soft-delete collection
+  c._deleted = true;
+  c.deletedAt = nowTs();
+  c.updatedAt = nowTs();
+  await put(STORES.collections, c);
+
+  // Remove collectionId from notes (notes remain)
+  const notes = await getAll(STORES.notes);
+  for (const n of notes) {
+    if (n.collectionId === id && !n._deleted) {
+      n.collectionId = null;
+      n.updatedAt = nowTs();
+      await put(STORES.notes, n);
+    }
+  }
+}
+
 
   window.DB = {
     STORES,
@@ -705,6 +831,9 @@ deleteProject,
 rolloverTodosToToday,
 deleteJournal,
 deleteHabit,
+archiveCollection,
+unarchiveCollection,
+deleteCollection,
     deleteNote
   };
 })();
