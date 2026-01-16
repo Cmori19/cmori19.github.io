@@ -34,6 +34,7 @@
     <button id="tab-habits" class="tab" type="button">Habits</button>
     <button id="tab-meals" class="tab" type="button">Meals</button>
     <button id="tab-notes" class="tab" type="button">Notes</button>
+    <button id="tab-goals" class="tab" type="button">Goals</button>
   </nav>
 
   <main class="container">
@@ -540,6 +541,25 @@
         <button id="btnSaveNote" class="btn btn--ghost hidden" type="button">Save</button>
       </div>
     </section>
+
+    <section id="view-goals" class="view hidden">
+  <div class="card">
+    <div class="cardHeader">
+      <div class="segmented">
+        <button id="goalsViewLong" class="segBtn" aria-pressed="true">Long-term</button>
+        <button id="goalsViewAnnual" class="segBtn">Annual</button>
+        <button id="goalsViewMonthly" class="segBtn">Monthly</button>
+      </div>
+      <div class="cardActions">
+        <button id="btnAddGoalPeriod" class="btn btn--primary">+</button>
+      </div>
+    </div>
+
+    <div id="goalsIndexWrap"></div>
+    <div id="goalsDetailWrap" class="hidden"></div>
+  </div>
+</section>
+
   </main>
 
   <!-- Tabs menu -->
@@ -658,6 +678,7 @@
       <div class="checkRow"><label><input id="expActions" type="checkbox" checked /> Projects & actions</label></div>
       <div class="checkRow"><label><input id="expMeals" type="checkbox" checked /> Meals</label></div>
       <div class="checkRow"><label><input id="expNotes" type="checkbox" checked /> Notes</label></div>
+      <div class="checkRow"><label><input id="expGoals" type="checkbox" checked /> Goals</label></div>
 
       <button id="btnRunPdfExport" class="btn btn--primary" type="button">Export</button>
     </div>
