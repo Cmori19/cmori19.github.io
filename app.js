@@ -200,11 +200,14 @@ const REFLECTION_TAGS = [
   "general",
   "work",
   "fitness",
+  "health",
+  "nutrition",
   "social",
   "relationships",
   "sleep",
   "money"
 ];
+
 
   const btnSaveJournal = $("btnSaveJournal"); // hidden now, but keep for compatibility
   const btnJournalBack = $("btnJournalBack");
@@ -230,6 +233,87 @@ const REFLECTION_TAGS = [
   const projectList = $("projectList");
   const archivedProjectList = $("archivedProjectList");
 const btnToggleArchivedProjects = $("btnToggleArchivedProjects");
+const btnToggleProjectNotes = $("btnToggleProjectNotes");
+const projectNotesWrap = $("projectNotesWrap");
+const btnToggleProjectActions = $("btnToggleProjectActions");
+const projectActionsWrap = $("projectActionsWrap");
+
+btnToggleProjectActions?.addEventListener("click", () => {
+  const hidden = projectActionsWrap.classList.toggle("hidden");
+  btnToggleProjectActions.textContent = hidden
+    ? "Show actions"
+    : "Hide actions";
+});
+
+
+btnToggleProjectNotes?.addEventListener("click", () => {
+  const hidden = projectNotesWrap.classList.toggle("hidden");
+  btnToggleProjectNotes.textContent = hidden
+    ? "Show project notes"
+    : "Hide project notes";
+
+  // 🔑 Resize AFTER becoming visible
+  if (!hidden) {
+    requestAnimationFrame(() => {
+      autosizeTextarea(projectNotes);
+    });
+  }
+});
+
+
+const btnToggleProjectNotesLinked = $("btnToggleProjectNotesLinked");
+const projectLinkedNotesWrap = $("projectLinkedNotesWrap");
+const projectLinkedNotesList = $("projectLinkedNotesList");
+
+btnToggleProjectNotesLinked?.addEventListener("click", () => {
+  const hidden = projectLinkedNotesWrap.classList.toggle("hidden");
+  btnToggleProjectNotesLinked.textContent = hidden
+    ? "Show linked notes"
+    : "Hide linked notes";
+
+  if (!hidden) refreshProjectLinkedNotes();
+});
+
+
+async function refreshProjectLinkedNotes() {
+  if (!selectedProjectId) return;
+
+  const notes = (await window.DB.getAll(window.DB.STORES.notes))
+    .filter(n => !n._deleted && n.projectId === selectedProjectId)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+  projectLinkedNotesList.innerHTML = "";
+
+  if (!notes.length) {
+    projectLinkedNotesList.innerHTML =
+      `<li><div class="muted">No linked notes.</div></li>`;
+    return;
+  }
+
+  for (const n of notes) {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div class="list__left">
+        <strong>${escapeHtml(n.title || "Untitled")}</strong>
+      </div>
+      <div class="list__right">
+        <span class="muted">
+          ${n.updatedAt ? new Date(n.updatedAt).toLocaleDateString() : ""}
+        </span>
+      </div>
+    `;
+
+li.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  openNoteEditModal(n.id);
+});
+
+
+
+    projectLinkedNotesList.appendChild(li);
+  }
+}
+
 
   // Project detail pane
   const projectTitle = $("projectTitle");
@@ -258,6 +342,12 @@ const btnToggleArchivedProjects = $("btnToggleArchivedProjects");
 
   // Action modal
   const actionModal = $("actionModal");
+  const noteModal = $("noteModal");
+const noteModalBackdrop = $("noteModalBackdrop");
+const btnCloseNoteModal = $("btnCloseNoteModal");
+const modalNoteTitle = $("modalNoteTitle");
+const modalNoteBody = $("modalNoteBody");
+
   const actionBackdrop = $("actionBackdrop");
   const btnCloseActionModal = $("btnCloseActionModal");
   const modalActionTitle = $("modalActionTitle");
@@ -289,6 +379,11 @@ const btnToggleArchivedProjects = $("btnToggleArchivedProjects");
   const monthlyHabitSelectWrap = $("monthlyHabitSelectWrap");
   const monthlyHabitSelect = $("monthlyHabitSelect");
 
+  monthlyHabitSelect?.addEventListener("change", () => {
+  refreshHabitTrack();
+});
+
+
   // Meals
   const mealViewDaily = $("mealViewDaily");
   const mealViewWeekly = $("mealViewWeekly");
@@ -302,6 +397,25 @@ const btnToggleArchivedProjects = $("btnToggleArchivedProjects");
 
   const mealDailyWrap = $("mealDailyWrap");
   const mealWeeklyWrap = $("mealWeeklyWrap");
+
+  const mealPickerModal = $("mealPickerModal");
+const mealPickerBackdrop = $("mealPickerBackdrop");
+const btnCloseMealPicker = $("btnCloseMealPicker");
+const mealPickerList = $("mealPickerList");
+
+let mealPickerContext = null; // { dateISO, slot }
+
+btnCloseMealPicker?.addEventListener("click", () => {
+  hideModal(mealPickerModal);
+  mealPickerContext = null;
+});
+
+mealPickerBackdrop?.addEventListener("click", () => {
+  hideModal(mealPickerModal);
+  mealPickerContext = null;
+});
+
+
 
   // Meal modal (edit notes)
   const mealModal = $("mealModal");
@@ -367,7 +481,12 @@ btnAddProject?.addEventListener("click", () => {
   projectNameInput.value = "";
   projectNotesInput.value = "";
   showModal(projectModal);
+
+  requestAnimationFrame(() => {
+    projectNameInput.focus();
+  });
 });
+
 
 // Close project modal
 btnCloseProjectModal?.addEventListener("click", () => {
@@ -448,14 +567,68 @@ let rolloverSelectedDate = null;
     actionsPriority: new Set(["Low", "Medium", "High"]),
     actionsStatus: new Set(["Open", "In Progress", "Completed"]),
     projectPriority: new Set(["Low", "Medium", "High"]),
-    projectStatus: new Set(["Open", "In Progress", "Completed"])
+    projectStatus: new Set(["Open", "In Progress", "Completed"]),
+    notesProjects: new Set(["__ALL__"]),
+notesCollections: new Set(["__ALL__"])
   };
 
   /* ---------------------------------------------------------
      Utilities
   --------------------------------------------------------- */
 
+  async function openNoteEditModal(noteId) {
+  currentNoteId = noteId;
+
+  const n = await window.DB.getOne(window.DB.STORES.notes, noteId);
+  if (!n || n._deleted) return;
+
+  modalNoteTitle.value = n.title || "";
+modalNoteBody.value = n.body || "";
+
+showModal(noteModal);
+
+requestAnimationFrame(() => {
+  autosizeTextarea(modalNoteBody);
+  modalNoteTitle.focus();
+});
+
+}
+
+
+
+
+async function autosaveNoteFromModal() {
+  if (!currentNoteId) return;
+
+  const title = (modalNoteTitle.value || "").trim();
+  const body = (modalNoteBody.value || "").trim();
+
+  if (!title && !body) return;
+
+  const updatedAt = Date.now();
+
+  await window.DB.updateNote(currentNoteId, {
+    title,
+    body,
+    updatedAt
+  });
+}
+
+btnCloseNoteModal?.addEventListener("click", () => {
+  hideModal(noteModal);
+  currentNoteId = null;
+});
+
+noteModalBackdrop?.addEventListener("click", () => {
+  hideModal(noteModal);
+  currentNoteId = null;
+});
+
   function showModal(modal) { modal?.classList.remove("hidden"); }
+
+
+
+ 
 
   async function confirmInApp({ title = "Confirm", message = "" }) {
   return new Promise((resolve) => {
@@ -505,12 +678,37 @@ function isTouchDevice() {
       .replaceAll(">", "&gt;");
   }
 
+  function highlightMatch(text, query) {
+  if (!query) return escapeHtml(text || "");
+  const safe = escapeHtml(text || "");
+  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "ig");
+  return safe.replace(re, `<mark>$1</mark>`);
+}
+
+
   function pad2(n) { return String(n).padStart(2, "0"); }
 
   function todayStrISO() {
     const d = new Date();
     return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   }
+
+  async function maybeRunDailyTodoRollover() {
+  const today = todayStrISO();
+  const last = await window.DB.getSetting("ui.lastTodoRollover", null);
+
+  if (last === today) return;
+  if (typeof window.DB.rolloverTodosToToday !== "function") return;
+
+  await window.DB.rolloverTodosToToday(today);
+  await window.DB.setSetting("ui.lastTodoRollover", today);
+
+  // Refresh UI after rollover
+  refreshTodoIndex();
+  refreshTodoDetail();
+  refreshDashboard();
+}
+
 
   function parseISO(yyyyMmDd) {
     const [y, m, d] = (yyyyMmDd || "").split("-").map(Number);
@@ -1814,11 +2012,25 @@ const items = allTodos.filter(t =>
 );
 
 
-items.sort(
-  (a, b) =>
-    prioRank(b.priority || "Medium") - prioRank(a.priority || "Medium") ||
-    (a.createdAt || 0) - (b.createdAt || 0)
-);
+items.sort((a, b) => {
+  const prio =
+    prioRank(b.priority || "Medium") -
+    prioRank(a.priority || "Medium");
+  if (prio !== 0) return prio;
+
+  const statusRank = s =>
+    s === "In Progress" ? 3 :
+    s === "Open" ? 2 : 1;
+
+  const status =
+    statusRank(b.status || "Open") -
+    statusRank(a.status || "Open");
+  if (status !== 0) return status;
+
+  return (a.createdAt || 0) - (b.createdAt || 0);
+});
+
+
 
     todoList.innerHTML = "";
     if (!items.length) {
@@ -2000,6 +2212,11 @@ right.appendChild(delBtn);
     journalIndexCard?.classList.add("hidden");
     journalDetailCard?.classList.remove("hidden");
     loadJournalDetail();
+
+    requestAnimationFrame(() => {
+  jGratitude.focus();
+});
+
   }
 
   btnJournalBack?.addEventListener("click", async () => {
@@ -2038,9 +2255,22 @@ right.appendChild(delBtn);
   const all = await window.DB.getAll(window.DB.STORES.journal);
 
   const dates = all
-    .filter(j => !j._deleted)
-    .map(j => j.date)
-    .sort((a, b) => b.localeCompare(a));
+  .filter(j => !j._deleted)
+  .filter(j => {
+    if (!journalSearchText) return true;
+
+    const text =
+      (j.gratitude || "") +
+      (j.objectives || "") +
+      (typeof j.reflections === "object"
+        ? Object.values(j.reflections).join(" ")
+        : "");
+
+    return text.toLowerCase().includes(journalSearchText);
+  })
+  .map(j => j.date)
+  .sort((a, b) => b.localeCompare(a));
+
 
   journalDateList.innerHTML = "";
 
@@ -2055,17 +2285,32 @@ right.appendChild(delBtn);
     const rec = all.find(j => !j._deleted && j.date === d);
     if (!rec) continue;
 
-    const preview =
-      (typeof rec.gratitude === "string" && rec.gratitude.trim()) ||
-      (typeof rec.objectives === "string" && rec.objectives.trim()) ||
-      (
-        rec.reflections &&
-        typeof rec.reflections === "object" &&
-        Object.values(rec.reflections).find(
-          v => typeof v === "string" && v.trim()
-        )
-      ) ||
-      "";
+    let preview = "";
+
+if (journalSearchText) {
+  const allText =
+    (rec.gratitude || "") + " " +
+    (rec.objectives || "") + " " +
+    (rec.reflections && typeof rec.reflections === "object"
+      ? Object.values(rec.reflections).join(" ")
+      : "");
+
+  const idx = allText.toLowerCase().indexOf(journalSearchText);
+  if (idx !== -1) {
+    preview = allText.slice(Math.max(0, idx - 40), idx + 40);
+  }
+} else {
+  preview =
+    rec.gratitude ||
+    rec.objectives ||
+    (
+      rec.reflections &&
+      typeof rec.reflections === "object" &&
+      Object.values(rec.reflections).find(v => v && v.trim())
+    ) ||
+    "";
+}
+
 
     const li = document.createElement("li");
 
@@ -2073,7 +2318,12 @@ right.appendChild(delBtn);
       <div class="list__left">
         <div class="titleClamp">
           <div><strong>${isoToDDMMYYYY(d)}</strong></div>
-          <div class="muted">${preview ? escapeHtml(String(preview).slice(0, 64)) : "—"}</div>
+<div class="muted">${
+  preview
+    ? highlightMatch(String(preview), journalSearchText)
+    : "—"
+}</div>
+
         </div>
       </div>
       <div class="list__right"></div>
@@ -2178,12 +2428,23 @@ journalStress.value = rec?.stress ?? "";
 
   // 🔒 Only write reflections if user has actually added/edited them
   if (
-    currentReflections &&
-    typeof currentReflections === "object" &&
-    Object.keys(currentReflections).length > 0
-  ) {
-    payload.reflections = { ...currentReflections };
+  currentReflections &&
+  typeof currentReflections === "object"
+) {
+  const cleaned = {};
+
+  for (const [key, value] of Object.entries(currentReflections)) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      cleaned[key] = value;
+    }
   }
+
+  // IMPORTANT:
+  // If reflections were removed, explicitly overwrite with {}
+  payload.reflections = cleaned;
+}
+
+
 
   await window.DB.upsertJournal(payload);
 }
@@ -2282,18 +2543,24 @@ function renderReflectionSections() {
     });
 
     removeBtn.addEventListener("click", async () => {
-      if (ta.value.trim()) {
-        const ok = await confirmInApp({
-          title: "Remove reflection",
-          message: `Remove ${label.textContent} reflection?`
-        });
-        if (!ok) return;
-      }
-
-      delete currentReflections[tag];
-      renderReflectionSections();
-      debounce("journal_autosave", 300, autosaveJournal);
+  if (ta.value.trim()) {
+    const ok = await confirmInApp({
+      title: "Remove reflection",
+      message: `Remove ${label.textContent} reflection?`
     });
+    if (!ok) return;
+  }
+
+  // Permanently remove the reflection key
+  delete currentReflections[tag];
+
+  // Re-render UI
+  renderReflectionSections();
+
+  // Immediately persist the removal
+  await autosaveJournal();
+});
+
 
     wrapper.appendChild(labelRow);
     wrapper.appendChild(ta);
@@ -2404,6 +2671,80 @@ function renderReflectionSections() {
     onApply: () => refreshActionsForProject()
   });
 
+  async function buildNotesFilters() {
+  // ---------- Projects ----------
+  const projects = (await window.DB.getAll(window.DB.STORES.projects))
+    .filter(p => !p._deleted && !p.archived);
+
+  buildMultiFilter({
+    button: notesProjectFilterBtn,
+    panel: notesProjectFilterPanel,
+    title: "Projects",
+    options: ["All", ...projects.map(p => p.name)],
+    stateSet: new Set(
+      filterState.notesProjects.has("__ALL__")
+        ? ["All"]
+        : projects.filter(p => filterState.notesProjects.has(p.id)).map(p => p.name)
+    ),
+    onApply: () => {
+      const picked = new Set();
+      notesProjectFilterPanel
+        .querySelectorAll("input[type=checkbox]")
+        .forEach((cb, i) => {
+          if (!cb.checked) return;
+          const label = i === 0 ? "All" : projects[i - 1].id;
+          picked.add(label);
+        });
+
+      filterState.notesProjects.clear();
+      if (picked.has("All") || picked.size === 0) {
+        filterState.notesProjects.add("__ALL__");
+      } else {
+        picked.forEach(id => filterState.notesProjects.add(id));
+      }
+
+      refreshNotes();
+    }
+  });
+
+  // ---------- Collections ----------
+  const collections = (await window.DB.getAll(window.DB.STORES.collections))
+    .filter(c => !c._deleted && !c.archived);
+
+  buildMultiFilter({
+    button: notesCollectionFilterBtn,
+    panel: notesCollectionFilterPanel,
+    title: "Collections",
+    options: ["All", ...collections.map(c => c.name)],
+    stateSet: new Set(
+      filterState.notesCollections.has("__ALL__")
+        ? ["All"]
+        : collections.filter(c => filterState.notesCollections.has(c.id)).map(c => c.name)
+    ),
+    onApply: () => {
+      const picked = new Set();
+      notesCollectionFilterPanel
+        .querySelectorAll("input[type=checkbox]")
+        .forEach((cb, i) => {
+          if (!cb.checked) return;
+          const label = i === 0 ? "All" : collections[i - 1].id;
+          picked.add(label);
+        });
+
+      filterState.notesCollections.clear();
+      if (picked.has("All") || picked.size === 0) {
+        filterState.notesCollections.add("__ALL__");
+      } else {
+        picked.forEach(id => filterState.notesCollections.add(id));
+      }
+
+      refreshNotes();
+    }
+  });
+}
+
+
+
   
   btnToggleArchivedProjects?.addEventListener("click", async () => {
   archivedProjectsVisible = !archivedProjectsVisible;
@@ -2428,24 +2769,33 @@ function renderReflectionSections() {
     editingActionId = editId;
 
     if (!editId) {
-      actionModalTitle.textContent = "New action";
-      modalActionTitle.value = "";
-      modalActionDue.value = "";
-      modalActionNotes.value = "";
-      modalActionPriority.value = "Medium";
-      modalActionStatus.value = "Open";
-      modalActionProject.value = "None";
-      btnDeleteAction.classList.add("hidden");
-      showModal(actionModal);
-      autosizeTextarea(modalActionNotes);
-      return;
-    }
+  actionModalTitle.textContent = "New action";
+  modalActionTitle.value = "";
+  modalActionDue.value = "";
+  modalActionNotes.value = "";
+  modalActionPriority.value = "Medium";
+  modalActionStatus.value = "Open";
+  modalActionProject.value = "None";
+  btnDeleteAction.classList.add("hidden");
+  showModal(actionModal);
+
+  requestAnimationFrame(() => {
+    modalActionTitle.focus();
+  });
+
+  return;
+}
+
+
+
+
 
     actionModalTitle.textContent = "Edit action";
     btnDeleteAction.classList.remove("hidden");
     showModal(actionModal);
     loadActionIntoModal(editId);
   }
+  
 
   async function loadActionIntoModal(id) {
     const a = await window.DB.getOne(window.DB.STORES.actions, id);
@@ -2511,7 +2861,6 @@ function renderReflectionSections() {
 
   btnRefreshActions?.addEventListener("click", refreshActionsUI);
   actionSort?.addEventListener("change", refreshActionsUI);
-  actionSort2?.addEventListener("change", refreshActionsForProject);
 
   async function refreshProjectsAndActions() {
     // Projects list + modal project dropdown + filters
@@ -2543,6 +2892,7 @@ const archivedProjects = allProjects
 
       for (const p of projects) {
   const li = document.createElement("li");
+  if (p.id === selectedProjectId) li.classList.add("active");
   li.innerHTML = `
     <div class="list__left">
       <div class="titleClamp">
@@ -2552,14 +2902,17 @@ const archivedProjects = allProjects
     </div>
     <div class="list__right"><span class="pill">Project</span></div>
   `;
+  
 
-  // Click to select project
   li.addEventListener("click", async () => {
-    selectedProjectId = p.id;
-    setActionsMode("projects");
-    await refreshActionsForProject();
-    await loadProjectPane();
-  });
+  selectedProjectId = p.id;
+  setActionsMode("projects");
+
+  await refreshProjectsAndActions(); // 🔑 re-render list to update highlight
+  await refreshActionsForProject();
+  await loadProjectPane();
+});
+
 
   /// Archive / Unarchive button
 const archiveBtn = document.createElement("button");
@@ -2705,6 +3058,24 @@ if (archivedProjectsVisible) {
   }
 
   async function loadProjectPane() {
+    projectNotesWrap?.classList.add("hidden");
+btnToggleProjectNotes.textContent = "Show project notes";
+
+// Reset collapsible sections when switching projects
+if (loadProjectPane._lastProject !== selectedProjectId) {
+  projectActionsWrap?.classList.add("hidden");
+  btnToggleProjectActions.textContent = "Show actions";
+
+  projectLinkedNotesWrap?.classList.add("hidden");
+  btnToggleProjectNotesLinked.textContent = "Show linked notes";
+}
+
+loadProjectPane._lastProject = selectedProjectId;
+
+
+
+
+
     if (!selectedProjectId) {
       if (projectTitle) projectTitle.textContent = "Project";
       if (projectMeta) projectMeta.textContent = "—";
@@ -2768,17 +3139,32 @@ actions = actions.filter(a => !archivedProjectIds.has(a.projectId));
     const sortMode = actionSort?.value || "dueAsc";
 
     filtered.sort((a, b) => {
-      const da = a.dueDate || "9999-99-99";
-      const db = b.dueDate || "9999-99-99";
+  // 1. Priority
+  const prio =
+    prioRank(b.priority || "Medium") -
+    prioRank(a.priority || "Medium");
+  if (prio !== 0) return prio;
 
-      if (sortMode === "dueAsc") return da.localeCompare(db) || (b.createdAt || 0) - (a.createdAt || 0);
-      if (sortMode === "dueDesc") return db.localeCompare(da) || (b.createdAt || 0) - (a.createdAt || 0);
+  // 2. Status
+  const statusRank = s =>
+    s === "In Progress" ? 3 :
+    s === "Open" ? 2 : 1;
 
-      if (sortMode === "priorityDesc") return prioRank(b.priority || "Medium") - prioRank(a.priority || "Medium") || da.localeCompare(db);
-      if (sortMode === "priorityAsc") return prioRank(a.priority || "Medium") - prioRank(b.priority || "Medium") || da.localeCompare(db);
+  const status =
+    statusRank(b.status || "Open") -
+    statusRank(a.status || "Open");
+  if (status !== 0) return status;
 
-      return (b.createdAt || 0) - (a.createdAt || 0);
-    });
+  // 3. Due date (earliest first, empty last)
+  const da = a.dueDate || "9999-99-99";
+  const db = b.dueDate || "9999-99-99";
+  if (da !== db) return da.localeCompare(db);
+
+  // 4. Created date (newest first)
+  return (b.createdAt || 0) - (a.createdAt || 0);
+});
+
+
 
     actionList.innerHTML = "";
     if (!filtered.length) {
@@ -2936,17 +3322,32 @@ actions = actions.filter(a => !archivedProjectIds.has(a.projectId));
 
     const sortMode = actionSort2?.value || "dueAsc";
     filtered.sort((a, b) => {
-      const da = a.dueDate || "9999-99-99";
-      const db = b.dueDate || "9999-99-99";
+  // 1. Priority
+  const prio =
+    prioRank(b.priority || "Medium") -
+    prioRank(a.priority || "Medium");
+  if (prio !== 0) return prio;
 
-      if (sortMode === "dueAsc") return da.localeCompare(db) || (b.createdAt || 0) - (a.createdAt || 0);
-      if (sortMode === "dueDesc") return db.localeCompare(da) || (b.createdAt || 0) - (a.createdAt || 0);
+  // 2. Status
+  const statusRank = s =>
+    s === "In Progress" ? 3 :
+    s === "Open" ? 2 : 1;
 
-      if (sortMode === "priorityDesc") return prioRank(b.priority || "Medium") - prioRank(a.priority || "Medium") || da.localeCompare(db);
-      if (sortMode === "priorityAsc") return prioRank(a.priority || "Medium") - prioRank(b.priority || "Medium") || da.localeCompare(db);
+  const status =
+    statusRank(b.status || "Open") -
+    statusRank(a.status || "Open");
+  if (status !== 0) return status;
 
-      return (b.createdAt || 0) - (a.createdAt || 0);
-    });
+  // 3. Due date (earliest first, empty last)
+  const da = a.dueDate || "9999-99-99";
+  const db = b.dueDate || "9999-99-99";
+  if (da !== db) return da.localeCompare(db);
+
+  // 4. Created date (newest first)
+  return (b.createdAt || 0) - (a.createdAt || 0);
+});
+
+
 
     actionList2.innerHTML = "";
     if (!filtered.length) {
@@ -3035,9 +3436,14 @@ actions = actions.filter(a => !archivedProjectIds.has(a.projectId));
     setPressed(habitViewMonthly, mode === "monthly");
 
     habitWeeklyWrap?.classList.toggle("hidden", mode !== "weekly");
-    habitMonthlyWrap?.classList.toggle("hidden", mode !== "monthly");
+habitMonthlyWrap?.classList.toggle("hidden", mode !== "monthly");
 
-    refreshHabitTrack();
+// 🔑 SHOW habit filter ONLY in monthly view
+monthlyHabitSelectWrap?.classList.toggle("hidden", mode !== "monthly");
+
+refreshHabitTrack();
+
+
   }
 
   habitViewWeekly?.addEventListener("click", () => setHabitTrackMode("weekly"));
@@ -3092,7 +3498,12 @@ actions = actions.filter(a => !archivedProjectIds.has(a.projectId));
     habitList.classList.toggle("hidden", habitsHidden);
     habitArchivedList.innerHTML = "";
 
-    monthlyHabitSelect.innerHTML = "";
+monthlyHabitSelect.innerHTML = "";
+
+const defaultOpt = document.createElement("option");
+defaultOpt.value = "";
+defaultOpt.textContent = "All habits";
+monthlyHabitSelect.appendChild(defaultOpt);
     for (const h of active) {
       const opt = document.createElement("option");
       opt.value = h.id;
@@ -3100,7 +3511,6 @@ actions = actions.filter(a => !archivedProjectIds.has(a.projectId));
       monthlyHabitSelect.appendChild(opt);
     }
 
-    monthlyHabitSelectWrap.classList.toggle("hidden", (monthlyViewMode.value || "byHabit") !== "byHabit");
 
     if (!active.length) {
       const li = document.createElement("li");
@@ -3118,7 +3528,7 @@ actions = actions.filter(a => !archivedProjectIds.has(a.projectId));
           </div>
           <div class="list__right">
 <button class="btn btn--ghost" type="button" data-action="archive">Archive</button>
-<button class="iconBtn" type="button" data-action="delete" title="Delete habit">🗑</button>
+<button class="iconBtn" type="button" data-action="delete" title="Delete habit">×</button>
           </div>
         `;
         const archiveBtn = li.querySelector('[data-action="archive"]');
@@ -3213,7 +3623,6 @@ deleteBtn.addEventListener("click", async (ev) => {
     if (habitTrackMode === "weekly") renderHabitWeekly(habits, completions, ref);
     else renderHabitMonthly(habits, completions, ref);
 
-    monthlyHabitSelectWrap.classList.toggle("hidden", (monthlyViewMode.value || "byHabit") !== "byHabit");
   }
 
   function isTicked(completions, habitId, dateISO) {
@@ -3297,7 +3706,7 @@ deleteBtn.addEventListener("click", async (ev) => {
     const last = new Date(year, month + 1, 0);
     const daysInMonth = last.getDate();
 
-    const mode = "aggregate";
+const mode = monthlyHabitSelect?.value ? "byHabit" : "aggregate";
 
     const makeCell = (txt, cls) => {
       const c = document.createElement("div");
@@ -3379,6 +3788,37 @@ deleteBtn.addEventListener("click", async (ev) => {
      - Daily header: weekday + date stacked
      - Click a meal to edit notes in mealModal
   --------------------------------------------------------- */
+
+  async function openMealPicker(dateISO, slot) {
+  mealPickerContext = { dateISO, slot };
+
+  const meals = (await window.DB.getAll(window.DB.STORES.meals))
+    .filter(m => !m._deleted)
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  mealPickerList.innerHTML = "";
+
+  if (!meals.length) {
+    mealPickerList.innerHTML =
+      `<li><div class="muted">No meals yet.</div></li>`;
+  } else {
+    for (const m of meals) {
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="list__left"><strong>${escapeHtml(m.name)}</strong></div>`;
+
+      li.addEventListener("click", async () => {
+        await setMealPlan(dateISO, slot, m.id);
+        hideModal(mealPickerModal);
+        mealPickerContext = null;
+      });
+
+      mealPickerList.appendChild(li);
+    }
+  }
+
+  showModal(mealPickerModal);
+}
+
 
   let mealMode = "daily";
 
@@ -3537,7 +3977,7 @@ mealsWrap.classList.toggle("stack", mealsListHidden);
       cell.innerHTML = `
   <div class="mealSlotHead">
     ${slotLabel(s)}
-    ${isTouchDevice() ? `<button class="btn btn--ghost mealAddBtn" type="button">+</button>` : ``}
+    <button class="btn btn--ghost mealAddBtn" type="button">+</button>
   </div>
 
   <div class="mealSlotBody ${mealName ? "" : "empty"}">
@@ -3557,28 +3997,11 @@ mealsWrap.classList.toggle("stack", mealsListHidden);
 if (isTouchDevice()) {
   const addBtn = cell.querySelector(".mealAddBtn");
 
-  addBtn?.addEventListener("click", async (ev) => {
-    ev.stopPropagation();
+  addBtn?.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  openMealPicker(dateISO, s);
+});
 
-    const select = document.createElement("select");
-    select.className = "select";
-    select.innerHTML = `<option value="">Select meal…</option>`;
-
-    for (const m of meals) {
-      const opt = document.createElement("option");
-      opt.value = m.id;
-      opt.textContent = m.name;
-      select.appendChild(opt);
-    }
-
-    select.addEventListener("change", async () => {
-      if (!select.value) return;
-      await setMealPlan(dateISO, s, select.value);
-    });
-
-    addBtn.replaceWith(select);
-    select.focus();
-  });
 }
 
 
@@ -3634,7 +4057,7 @@ if (isTouchDevice()) {
       : `<span class="muted">${isTouchDevice() ? "+" : "Drop"}</span>`}
   </div>
 
-  ${isTouchDevice() ? `<button class="btn btn--ghost mealAddBtn" type="button">+</button>` : ``}
+<button class="btn btn--ghost mealAddBtn" type="button">+</button>
   <button class="iconBtn" type="button" title="Clear">×</button>
 `;
 
@@ -3645,29 +4068,23 @@ if (isTouchDevice()) {
 if (isTouchDevice()) {
   const addBtn = cell.querySelector(".mealAddBtn");
 
-  addBtn?.addEventListener("click", async (ev) => {
-    ev.stopPropagation();
+  addBtn?.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  openMealPicker(dateISO, s);
+});
 
-    const select = document.createElement("select");
-    select.className = "select";
-    select.innerHTML = `<option value="">Select meal…</option>`;
-
-    for (const m of meals) {
-      const opt = document.createElement("option");
-      opt.value = m.id;
-      opt.textContent = m.name;
-      select.appendChild(opt);
-    }
-
-    select.addEventListener("change", async () => {
-      if (!select.value) return;
-      await setMealPlan(dateISO, s, select.value);
-    });
-
-    addBtn.replaceWith(select);
-    select.focus();
-  });
 }
+
+btnCloseMealPicker?.addEventListener("click", () => {
+  hideModal(mealPickerModal);
+  mealPickerContext = null;
+});
+
+mealPickerBackdrop?.addEventListener("click", () => {
+  hideModal(mealPickerModal);
+  mealPickerContext = null;
+});
+
 
         cell.querySelector("button").addEventListener("click", () => clearMealPlan(dateISO, s));
 
@@ -3732,6 +4149,13 @@ requestAnimationFrame(() => {
      - Index list -> click opens detail view
      - Autosave on typing
   --------------------------------------------------------- */
+
+  btnNotesBack?.addEventListener("click", async () => {
+  await autosaveNote();
+  showNotesIndex();
+  await refreshNotes();
+});
+
 
   function showNotesIndex() {
     notesDetailCard?.classList.add("hidden");
@@ -3916,6 +4340,8 @@ async function populateNotesProjectFilter() {
 
   async function refreshNotes() {
   showNotesIndex();
+  await buildNotesFilters();
+
 
   if (notesSearchInput) {
     notesSearchInput.value = notesSearchText;
@@ -3964,23 +4390,22 @@ async function populateNotesProjectFilter() {
     });
   }
 
-  // --------------------------------------------------
-  // Collection filter
-  // --------------------------------------------------
-  if (selectedCollectionId) {
-    filteredNotes = filteredNotes.filter(
-      n => n.collectionId === selectedCollectionId
-    );
-  }
+ // ---------- Project filter ----------
+const projSet = filterState.notesProjects;
+if (!projSet.has("__ALL__")) {
+  filteredNotes = filteredNotes.filter(n =>
+    n.projectId && projSet.has(n.projectId)
+  );
+}
 
-  // --------------------------------------------------
-  // Project filter
-  // --------------------------------------------------
-  if (selectedNotesProjectId) {
-    filteredNotes = filteredNotes.filter(
-      n => n.projectId === selectedNotesProjectId
-    );
-  }
+// ---------- Collection filter ----------
+const colSet = filterState.notesCollections;
+if (!colSet.has("__ALL__")) {
+  filteredNotes = filteredNotes.filter(n =>
+    n.collectionId && colSet.has(n.collectionId)
+  );
+}
+
 
   // --------------------------------------------------
   // Render notes
@@ -4003,20 +4428,28 @@ async function populateNotesProjectFilter() {
     }
 
     li.innerHTML = `
-      <div class="noteRow">
-        <div class="noteCol noteCol--title">
-          <strong>${escapeHtml(title)}</strong>
-        </div>
+  <div class="noteRow">
+    <div class="noteCol noteCol--title">
+      <strong>${escapeHtml(title)}</strong>
+    </div>
 
-        <div class="noteCol noteCol--project">
-          ${projectName ? escapeHtml(projectName) : ""}
-        </div>
+    ${
+      notesSearchText
+        ? `<div class="noteCol" style="grid-column: 2 / span 2; font-size:12px; color:var(--muted)">
+             ${highlightMatch((n.body || "").slice(0, 120), notesSearchText)}
+           </div>`
+        : `
+           <div class="noteCol noteCol--project">
+             ${projectName ? escapeHtml(projectName) : ""}
+           </div>
+           <div class="noteCol noteCol--date">
+             ${escapeHtml(updated)}
+           </div>
+         `
+    }
+  </div>
+`;
 
-        <div class="noteCol noteCol--date">
-          ${escapeHtml(updated)}
-        </div>
-      </div>
-    `;
 
     li.addEventListener("click", () => openNote(n.id));
     notesList.appendChild(li);
@@ -4067,7 +4500,6 @@ noteProjectSelect.value = n.projectId || "";
     autosizeTextarea(noteBody);
   }
 
-  btnNotesBack?.addEventListener("click", refreshNotes);
 
   noteCollectionSelect?.addEventListener("change", () => {
   autosaveNote();
@@ -4085,7 +4517,7 @@ noteProjectSelect?.addEventListener("change", () => {
 
  btnNewNote?.addEventListener("click", async () => {
   const input = {
-    title: "Untitled",
+    title: "",
     body: ""
   };
 
@@ -4111,24 +4543,32 @@ noteProjectSelect?.addEventListener("change", () => {
 
 
   async function autosaveNote() {
-    if (!currentNoteId) return;
-    const updatedAt = Date.now();
-    const existing = await window.DB.getOne(window.DB.STORES.notes, currentNoteId);
+  if (!currentNoteId) return;
 
-    
+  const title = (noteTitle.value || "").trim();
+  const body = (noteBody.value || "").trim();
 
-
-await window.DB.updateNote(currentNoteId, {
-  title: (noteTitle.value || "").trim() || "Untitled",
-  body: noteBody.value || "",
-  collectionId: noteCollectionSelect.value || null,
-  projectId: noteProjectSelect.value || null,
-  updatedAt
-});
-
-
-    noteUpdated.textContent = new Date(updatedAt).toLocaleString();
+  // If completely empty → delete note and exit
+  if (!title && !body) {
+    await window.DB.deleteNote(currentNoteId);
+    currentNoteId = null;
+    await refreshNotes();
+    return;
   }
+
+  const updatedAt = Date.now();
+
+  await window.DB.updateNote(currentNoteId, {
+    title,
+    body,
+    collectionId: noteCollectionSelect.value || null,
+    projectId: noteProjectSelect.value || null,
+    updatedAt
+  });
+
+  noteUpdated.textContent = new Date(updatedAt).toLocaleString();
+}
+
 
   noteTitle?.addEventListener("input", () => debounce("note_autosave", 250, autosaveNote));
   noteTitle?.addEventListener("keydown", (e) => {
@@ -4207,11 +4647,20 @@ if (!ok) return;
 const todoMetricValue = document.getElementById("mTodoWeek");
 
 
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    maybeRunDailyTodoRollover();
+  }
+});
+
+await maybeRunDailyTodoRollover();
+
 
 
 
     setTab("dashboard");
     await refreshCollections();
+    await buildNotesFilters();
     await refreshNotesProjectFilter();
 
   }
