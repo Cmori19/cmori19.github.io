@@ -2,7 +2,8 @@
 (function () {
   const $ = (id) => document.getElementById(id);
 
-  const views = ["dashboard", "todo", "journal", "actions", "habits", "meals", "notes"];
+ const views = ["dashboard", "todo", "journal", "actions", "habits", "meals", "notes", "goals"];
+
 
   /* ---------------------------------------------------------
      DOM references (match your new index.html)
@@ -88,6 +89,7 @@ authPassword?.addEventListener("keydown", (e) => {
   const expActions = $("expActions");
   const expMeals = $("expMeals");
   const expNotes = $("expNotes");
+    const expGoals = $("expGoals");
   const btnRunPdfExport = $("btnRunPdfExport");
 
   // Dashboard metrics
@@ -431,6 +433,11 @@ mealPickerBackdrop?.addEventListener("click", () => {
   const notesIndexCard = $("notesIndexCard");
   const notesDetailCard = $("notesDetailCard");
   const btnNewNote = $("btnNewNote");
+    const btnNotesCollectionsToggle = document.createElement("button");
+  btnNotesCollectionsToggle.className = "btn btn--ghost";
+  btnNotesCollectionsToggle.type = "button";
+  btnNotesCollectionsToggle.textContent = "Collections";
+
   const notesSearchInput = $("notesSearchInput");
   const notesList = $("notesList");
   const noteCollectionSelect = $("noteCollectionSelect");
@@ -1168,7 +1175,8 @@ if (window.Sync && typeof window.Sync.initialSync === "function") {
     actions: "Projects",
     habits: "Habits",
     meals: "Meals",
-    notes: "Notes"
+    notes: "Notes", 
+    goals: "Goals"
   };
 
   async function applyTabVisibility() {
@@ -1300,6 +1308,411 @@ for (const [tab, metricId] of Object.entries(metricMap)) {
     refreshNotes();
   });
 
+    /* ---------------------------------------------------------
+     Goals
+  --------------------------------------------------------- */
+
+  const goalsViewLong = $("goalsViewLong");
+  const goalsViewAnnual = $("goalsViewAnnual");
+  const goalsViewMonthly = $("goalsViewMonthly");
+  const btnAddGoalPeriod = $("btnAddGoalPeriod");
+  const goalsIndexWrap = $("goalsIndexWrap");
+  const goalsDetailWrap = $("goalsDetailWrap");
+
+  let goalsMode = "long_term"; // "long_term" | "annual" | "monthly"
+  let currentGoalId = null;
+  let monthlyYearFilter = null;
+
+  function setSegPressed(btn, on) {
+    if (!btn) return;
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+
+  function monthLabel(yyyyMm) {
+    if (!yyyyMm || yyyyMm.length !== 7) return yyyyMm || "—";
+    const [y, m] = yyyyMm.split("-");
+    const dt = new Date(Number(y), Number(m) - 1, 1);
+    const name = dt.toLocaleString(undefined, { month: "long" });
+    return `${name} ${y}`;
+  }
+
+  async function getAllGoals() {
+    return (await window.DB.getAll(window.DB.STORES.goals)).filter(g => g && !g._deleted);
+  }
+
+  function showGoalsIndex() {
+    goalsIndexWrap?.classList.remove("hidden");
+    goalsDetailWrap?.classList.add("hidden");
+  }
+
+  function showGoalsDetail() {
+    goalsIndexWrap?.classList.add("hidden");
+    goalsDetailWrap?.classList.remove("hidden");
+  }
+
+  function setGoalsMode(mode) {
+    goalsMode = mode;
+    currentGoalId = null;
+
+    setSegPressed(goalsViewLong, mode === "long_term");
+    setSegPressed(goalsViewAnnual, mode === "annual");
+    setSegPressed(goalsViewMonthly, mode === "monthly");
+
+    if (btnAddGoalPeriod) {
+      btnAddGoalPeriod.style.display = (mode === "long_term") ? "none" : "";
+    }
+
+    showGoalsIndex();
+    refreshGoals();
+  }
+
+  goalsViewLong?.addEventListener("click", () => setGoalsMode("long_term"));
+  goalsViewAnnual?.addEventListener("click", () => setGoalsMode("annual"));
+  goalsViewMonthly?.addEventListener("click", () => setGoalsMode("monthly"));
+
+  async function saveGoalDraft(goal) {
+    const rec = await window.DB.upsertGoal({
+      id: goal.id,
+      type: goal.type,
+      period: goal.period,
+      content: goal.content || {}
+    });
+
+    try { await window.Sync?.pushItem?.("goals", rec); } catch { /* ignore */ }
+    return rec;
+  }
+
+  function renderGoalsEditor(goal, opts = {}) {
+    const { showBack } = opts;
+
+    if (!goalsDetailWrap) return;
+
+    goalsDetailWrap.innerHTML = "";
+
+    const header = document.createElement("div");
+    header.className = "cardHeader";
+
+    if (showBack) {
+      const back = document.createElement("button");
+      back.className = "btn btn--ghost";
+      back.type = "button";
+      back.textContent = "Back";
+      back.addEventListener("click", () => {
+        currentGoalId = null;
+        showGoalsIndex();
+        refreshGoals();
+      });
+      header.appendChild(back);
+    }
+
+    const title = document.createElement("div");
+    title.className = "cardTitle";
+
+    if (goal.type === "long_term") title.textContent = "Long-term";
+    if (goal.type === "annual") title.textContent = `Annual ${goal.period || "—"}`;
+    if (goal.type === "monthly") title.textContent = monthLabel(goal.period);
+
+    header.appendChild(title);
+
+    const actions = document.createElement("div");
+    actions.className = "cardActions";
+    header.appendChild(actions);
+
+        // Delete button (annual / monthly only)
+    if (goal.type !== "long_term") {
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "btn btn--ghost";
+      delBtn.textContent = "×";
+      delBtn.title = "Delete goal";
+
+      delBtn.addEventListener("click", async () => {
+        const ok = await confirmInApp({
+          title: "Delete goal",
+          message: "Delete this goal? This cannot be undone."
+        });
+        if (!ok) return;
+
+        await window.DB.deleteGoal(goal.id);
+
+        try {
+          await window.Sync?.pushItem?.("goals", {
+            ...goal,
+            _deleted: true,
+            updatedAt: Date.now()
+          });
+        } catch { /* ignore */ }
+
+        currentGoalId = null;
+        showGoalsIndex();
+        refreshGoals();
+      });
+
+      actions.appendChild(delBtn);
+    }
+
+
+    goalsDetailWrap.appendChild(header);
+
+    const content = goal.content || (goal.content = {});
+
+    for (const tag of REFLECTION_TAGS) {
+      const field = document.createElement("div");
+      field.className = "field";
+
+      const lab = document.createElement("label");
+      lab.textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
+      field.appendChild(lab);
+
+      const ta = document.createElement("textarea");
+      ta.className = "textarea autosize";
+      ta.rows = 6;
+      ta.value = content[tag] || "";
+
+      ta.addEventListener("input", () => {
+        content[tag] = ta.value || "";
+        debounce(`goal_autosave_${goal.id}`, 250, async () => {
+          await saveGoalDraft(goal);
+        });
+        autosizeTextarea(ta);
+      });
+
+      field.appendChild(ta);
+      goalsDetailWrap.appendChild(field);
+
+      autosizeTextarea(ta);
+    }
+  }
+
+  async function openGoal(id) {
+    const goals = await getAllGoals();
+    const g = goals.find(x => x.id === id);
+    if (!g) return;
+
+    currentGoalId = id;
+    showGoalsDetail();
+    renderGoalsEditor(g, { showBack: goalsMode !== "long_term" });
+  }
+
+  async function ensureLongTermGoal() {
+    const goals = await getAllGoals();
+    let g = goals.find(x => x.type === "long_term");
+    if (!g) {
+      g = await window.DB.upsertGoal({
+        id: "long_term",
+        type: "long_term",
+        period: null,
+        content: {}
+      });
+      try { await window.Sync?.pushItem?.("goals", g); } catch { /* ignore */ }
+    }
+    return g;
+  }
+
+  async function addAnnualGoal() {
+    const goals = await getAllGoals();
+    const existingYears = new Set(goals.filter(g => g.type === "annual" && g.period).map(g => g.period));
+    let y = String(new Date().getFullYear());
+    while (existingYears.has(y)) y = String(Number(y) + 1);
+
+    const id = `annual_${y}`;
+    const rec = await window.DB.upsertGoal({
+      id,
+      type: "annual",
+      period: y,
+      content: {}
+    });
+    try { await window.Sync?.pushItem?.("goals", rec); } catch { /* ignore */ }
+
+    await refreshGoals();
+    await openGoal(id);
+
+    requestAnimationFrame(() => {
+      const first = goalsDetailWrap?.querySelector("textarea");
+      first?.focus();
+    });
+  }
+
+  async function addMonthlyGoal() {
+    const goals = await getAllGoals();
+    const existing = new Set(goals.filter(g => g.type === "monthly" && g.period).map(g => g.period));
+
+    const d = new Date();
+    let y = d.getFullYear();
+    let m = d.getMonth() + 1;
+
+    function fmt(yy, mm) {
+      return `${yy}-${String(mm).padStart(2, "0")}`;
+    }
+
+    let p = fmt(y, m);
+    while (existing.has(p)) {
+      m += 1;
+      if (m === 13) { m = 1; y += 1; }
+      p = fmt(y, m);
+    }
+
+    const id = `monthly_${p}`;
+    const rec = await window.DB.upsertGoal({
+      id,
+      type: "monthly",
+      period: p,
+      content: {}
+    });
+    try { await window.Sync?.pushItem?.("goals", rec); } catch { /* ignore */ }
+
+    if (!monthlyYearFilter) monthlyYearFilter = String(y);
+
+    await refreshGoals();
+    await openGoal(id);
+
+    requestAnimationFrame(() => {
+      const first = goalsDetailWrap?.querySelector("textarea");
+      first?.focus();
+    });
+  }
+
+  btnAddGoalPeriod?.addEventListener("click", async () => {
+    if (goalsMode === "annual") return addAnnualGoal();
+    if (goalsMode === "monthly") return addMonthlyGoal();
+  });
+
+  async function refreshGoals() {
+    if (!goalsIndexWrap || !goalsDetailWrap) return;
+
+    if (currentGoalId) {
+      await openGoal(currentGoalId);
+      return;
+    }
+
+    showGoalsIndex();
+    goalsIndexWrap.innerHTML = "";
+
+    const goals = await getAllGoals();
+
+    if (goalsMode === "long_term") {
+      const g = await ensureLongTermGoal();
+      currentGoalId = g.id;
+      showGoalsDetail();
+      renderGoalsEditor(g, { showBack: false });
+      return;
+    }
+
+    if (goalsMode === "annual") {
+      const list = goals
+        .filter(g => g.type === "annual" && g.period)
+        .sort((a, b) => (b.period || "").localeCompare(a.period || ""));
+
+      if (!list.length) {
+        goalsIndexWrap.innerHTML = `<div class="muted">No annual goals yet. Press + to add a year.</div>`;
+        return;
+      }
+
+      const stack = document.createElement("div");
+      stack.className = "stack";
+
+      for (const g of list) {
+        const row = document.createElement("div");
+        row.className = "menuItem";
+        row.style.cursor = "pointer";
+
+        row.innerHTML = `
+          <div>
+            <strong>${g.period}</strong>
+            <div class="muted">Updated: ${g.updatedAt ? new Date(g.updatedAt).toLocaleString() : "—"}</div>
+          </div>
+        `;
+
+        row.addEventListener("click", () => openGoal(g.id));
+        stack.appendChild(row);
+      }
+
+      goalsIndexWrap.appendChild(stack);
+      return;
+    }
+
+    if (goalsMode === "monthly") {
+      const allMonthly = goals
+        .filter(g => g.type === "monthly" && g.period)
+        .sort((a, b) => (b.period || "").localeCompare(a.period || ""));
+
+      const years = Array.from(new Set(allMonthly.map(g => (g.period || "").slice(0, 4)).filter(Boolean)))
+        .sort((a, b) => b.localeCompare(a));
+
+      if (!monthlyYearFilter) monthlyYearFilter = years[0] || String(new Date().getFullYear());
+      if (years.length && !years.includes(monthlyYearFilter)) monthlyYearFilter = years[0];
+
+      const filterRow = document.createElement("div");
+      filterRow.className = "field";
+
+      const lab = document.createElement("label");
+      lab.textContent = "Year";
+      filterRow.appendChild(lab);
+
+      const sel = document.createElement("select");
+      sel.className = "input";
+
+      if (!years.length) {
+        const opt = document.createElement("option");
+        opt.value = String(new Date().getFullYear());
+        opt.textContent = opt.value;
+        sel.appendChild(opt);
+      } else {
+        for (const y of years) {
+          const opt = document.createElement("option");
+          opt.value = y;
+          opt.textContent = y;
+          sel.appendChild(opt);
+        }
+      }
+
+      sel.value = monthlyYearFilter;
+      sel.addEventListener("change", () => {
+        monthlyYearFilter = sel.value || monthlyYearFilter;
+        refreshGoals();
+      });
+
+      filterRow.appendChild(sel);
+      goalsIndexWrap.appendChild(filterRow);
+
+      const list = allMonthly.filter(g => (g.period || "").startsWith(monthlyYearFilter + "-"));
+
+      if (!list.length) {
+        const empty = document.createElement("div");
+        empty.className = "muted";
+        empty.textContent = "No monthly goals for this year. Press + to add a month.";
+        goalsIndexWrap.appendChild(empty);
+        return;
+      }
+
+      const stack = document.createElement("div");
+      stack.className = "stack";
+
+      for (const g of list) {
+        const row = document.createElement("div");
+        row.className = "menuItem";
+        row.style.cursor = "pointer";
+
+        row.innerHTML = `
+          <div>
+            <strong>${monthLabel(g.period)}</strong>
+            <div class="muted">Updated: ${g.updatedAt ? new Date(g.updatedAt).toLocaleString() : "—"}</div>
+          </div>
+        `;
+
+        row.addEventListener("click", () => openGoal(g.id));
+        stack.appendChild(row);
+      }
+
+      goalsIndexWrap.appendChild(stack);
+      return;
+    }
+  }
+
+  // Expose for tab switching
+  window.refreshGoals = refreshGoals;
+
+
   /* ---------------------------------------------------------
      Export PDF (extended to include Notes)
   --------------------------------------------------------- */
@@ -1319,6 +1732,8 @@ for (const [tab, metricId] of Object.entries(metricMap)) {
     const meals = (dump.meals || []).filter(x => !x._deleted).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
     const mealPlans = (dump.mealPlans || []).filter(x => !x._deleted);
     const notes = (dump.notes || []).filter(x => !x._deleted).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    const goals = (dump.goals || []).filter(x => !x._deleted);
+
 
     const projName = (id) => (projects.find(p => p.id === id)?.name) || "—";
     const esc = (s) => String(s || "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
@@ -1444,6 +1859,67 @@ for (const [tab, metricId] of Object.entries(metricMap)) {
         }
       }
     }
+if (expGoals.checked) {
+  html += `<h2 class="pb">Goals</h2>`;
+
+  const byType = t => goals.filter(g => g.type === t);
+
+  const renderGoal = g =>
+    Object.entries(g.content || {})
+      .map(([k,v]) => `<div><strong>${esc(k)}</strong>: ${esc(v).replaceAll("\n","<br>")}</div>`)
+      .join("");
+
+  const long = byType("long_term")[0];
+  if (long) {
+    html += `<div class="box"><strong>Long-term</strong>${renderGoal(long)}</div>`;
+  }
+
+  const annual = byType("annual").sort((a,b)=>b.period.localeCompare(a.period));
+  for (const g of annual) {
+    html += `<div class="box"><strong>Annual ${esc(g.period)}</strong>${renderGoal(g)}</div>`;
+  }
+
+  const monthly = byType("monthly").sort((a,b)=>b.period.localeCompare(a.period));
+  for (const g of monthly) {
+    html += `<div class="box"><strong>${esc(g.period)}</strong>${renderGoal(g)}</div>`;
+  }
+}
+
+    if (expGoals && expGoals.checked) {
+      html += `<h2 class="pb">Goals</h2>`;
+
+      const esc2 = (s) => String(s || "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
+      const renderContent = (g) => {
+        const c = g.content || {};
+        let out = "";
+        for (const tag of REFLECTION_TAGS) {
+          const v = (c[tag] || "").trim();
+          out += `<div><strong>${esc2(tag.charAt(0).toUpperCase() + tag.slice(1))}</strong>: ${esc2(v).replaceAll("\n","<br>")}</div>`;
+        }
+        return out;
+      };
+
+      const long = goals.find(g => g.type === "long_term");
+      html += `<div class="box"><strong>Long-term</strong>${long ? renderContent(long) : `<div class="muted">—</div>`}</div>`;
+
+      const annual = goals.filter(g => g.type === "annual" && g.period).sort((a, b) => (b.period || "").localeCompare(a.period || ""));
+      html += `<div class="box"><strong>Annual</strong></div>`;
+      if (!annual.length) html += `<div class="box muted">No annual goals.</div>`;
+      for (const g of annual) {
+        html += `<div class="box"><strong>${esc2(g.period)}</strong>${renderContent(g)}</div>`;
+      }
+
+      const monthly = goals.filter(g => g.type === "monthly" && g.period).sort((a, b) => (b.period || "").localeCompare(a.period || ""));
+      html += `<div class="box"><strong>Monthly</strong></div>`;
+      if (!monthly.length) html += `<div class="box muted">No monthly goals.</div>`;
+      for (const g of monthly) {
+        const title = monthLabel(g.period);
+        html += `<div class="box"><strong>${esc2(title)}</strong>${renderContent(g)}</div>`;
+      }
+    }
+
+
 
     html += `</body></html>`;
     w.document.open();
@@ -1480,17 +1956,20 @@ for (const [tab, metricId] of Object.entries(metricMap)) {
   }, 0);
 }
 
-    if (tab === "actions") refreshProjectsAndActions();
+       if (tab === "actions") refreshProjectsAndActions();
     if (tab === "habits") { refreshHabits(); refreshHabitTrack(); }
     if (tab === "meals") refreshMeals();
     if (tab === "notes") {
-  refreshCollections();
-  refreshNotesProjectFilter();
-  refreshNotes();
-}
-
+      refreshCollections();
+      refreshNotesProjectFilter();
+      refreshNotes();
+    }
+    if (tab === "goals") {
+      if (typeof window.refreshGoals === "function") window.refreshGoals();
+    }
 
   }
+
 
   function initTabs() {
     for (const t of views) {
@@ -4005,7 +4484,7 @@ if (isTouchDevice()) {
 }
 
 
-      cell.querySelector("button").addEventListener("click", () => clearMealPlan(dateISO, s));
+      cell.querySelector('button.iconBtn[title="Clear"]')?.addEventListener("click", () => clearMealPlan(dateISO, s));
 
       grid.appendChild(cell);
     }
@@ -4086,7 +4565,7 @@ mealPickerBackdrop?.addEventListener("click", () => {
 });
 
 
-        cell.querySelector("button").addEventListener("click", () => clearMealPlan(dateISO, s));
+        cell.querySelector('button.iconBtn[title="Clear"]')?.addEventListener("click", () => clearMealPlan(dateISO, s));
 
         grid.appendChild(cell);
       }
@@ -4516,6 +4995,30 @@ noteProjectSelect?.addEventListener("change", () => {
 });
 
  btnNewNote?.addEventListener("click", async () => {
+
+    // Toggle collections drawer (mobile)
+  btnNotesCollectionsToggle.addEventListener("click", () => {
+    document.body.classList.toggle("notes-show-collections");
+  });
+
+  // Close collections after selecting one (mobile UX)
+  document.getElementById("collectionList")?.addEventListener("click", () => {
+    document.body.classList.remove("notes-show-collections");
+  });
+
+    // Insert collections toggle into Notes header (mobile only)
+  requestAnimationFrame(() => {
+    const notesHeader = document.querySelector("#view-notes .notesIndexHeader");
+    if (!notesHeader) return;
+
+    if (!notesHeader.contains(btnNotesCollectionsToggle)) {
+      notesHeader.insertBefore(
+        btnNotesCollectionsToggle,
+        notesHeader.firstChild
+      );
+    }
+  });
+
   const input = {
     title: "",
     body: ""
