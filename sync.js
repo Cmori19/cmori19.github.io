@@ -11,6 +11,7 @@
     "meals",
     "mealPlans",
     "notes",
+    "goals",
     "settings"
   ];
 
