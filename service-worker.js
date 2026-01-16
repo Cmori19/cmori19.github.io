@@ -1,5 +1,5 @@
 // service-worker.js
-const CACHE_NAME = "planner-shell-v3-4";
+const CACHE_NAME = "planner-shell-v3-5";
 
 const APP_SHELL = [
   "./",
@@ -59,5 +59,6 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+
 
 
