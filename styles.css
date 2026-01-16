@@ -612,35 +612,6 @@ body{
   gap: 16px;
 }
 
-.notesCollections {
-  width: 180px;
-  border-right: 1px solid #e5e7eb;
-  padding-right: 8px;
-}
-
-.notesCollections ul {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 8px 0;
-}
-
-/* === Active collection: force readable colour in all themes === */
-
-.notesCollections ul li.active {
-  background-color: rgba(255,255,255,0.15);
-  color: var(--text) !important;
-}
-
-.notesCollections ul li.active * {
-  color: var(--text) !important;
-}
-
-
-
-.notesCollections li.active {
-  background: #e5e7eb;
-  font-weight: 600;
-}
 
 .notesIndexHeader {
   display: flex;
@@ -1335,3 +1306,74 @@ option {
   background: rgba(255,255,255,0.04);
 }
 
+/* =========================
+   iOS (Safari + Home Screen PWA) zoom prevention
+   ========================= */
+
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* =========================
+   Notes collections (final)
+   ========================= */
+
+.notesCollections {
+  width: 180px;
+  padding-right: 8px;
+  border-right: 1px solid var(--border);
+}
+
+.notesCollections ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px 0;
+}
+
+.notesCollections li {
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  cursor: pointer;
+  color: var(--text);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.notesCollections li:hover {
+  background: rgba(255,255,255,0.08);
+}
+
+.notesCollections li.active {
+  background: linear-gradient(90deg, var(--primary), var(--primary2));
+  border-color: rgba(255,255,255,0.15);
+  color: #fff;
+  font-weight: 600;
+}
+
+.notesCollections li.active * {
+  color: #fff;
+}
+
+/* =========================
+   Active project highlight
+   ========================= */
+
+#projectList li.active {
+  background: linear-gradient(90deg, var(--primary), var(--primary2));
+  border-color: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+#projectList li.active .muted {
+  color: rgba(255,255,255,0.85);
+}
+
+#projectList li.active * {
+  color: #fff;
+}
