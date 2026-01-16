@@ -533,7 +533,7 @@ async function deleteJournal(date) {
   rec.gratitude = input.gratitude ?? rec.gratitude ?? "";
   rec.objectives = input.objectives ?? rec.objectives ?? "";
 // -----------------------------
-// Reflections (tagged)
+// Reflections (tagged) — REPLACE, NOT MERGE
 // -----------------------------
 
 // Backward compatibility: old string reflections → { general: text }
@@ -543,18 +543,22 @@ if (typeof rec.reflections === "string") {
     : {};
 }
 
-// If new reflections object is provided, merge it
-if (input.reflections && typeof input.reflections === "object") {
-  rec.reflections = {
-    ...(rec.reflections || {}),
-    ...input.reflections
-  };
+// IMPORTANT:
+// Reflections are fully owned by the UI.
+// If provided, they must REPLACE existing reflections.
+if ("reflections" in input) {
+  if (input.reflections && typeof input.reflections === "object") {
+    rec.reflections = input.reflections;
+  } else {
+    rec.reflections = {};
+  }
 }
 
 // Ensure reflections is always an object
 if (!rec.reflections || typeof rec.reflections !== "object") {
   rec.reflections = {};
 }
+
   rec.mood = input.mood ?? rec.mood ?? null;
 rec.energy = input.energy ?? rec.energy ?? null;
 rec.stress = input.stress ?? rec.stress ?? null;
