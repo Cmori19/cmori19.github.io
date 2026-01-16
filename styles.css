@@ -1377,3 +1377,123 @@ option {
 #projectList li.active * {
   color: #fff;
 }
+
+
+/* =========================================================
+   NOTES — MOBILE FIXES (iPhone only)
+   Desktop behaviour remains unchanged
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+  /* --- Notes must span full width (no centred card) --- */
+  #view-notes {
+    margin: 0;
+  }
+
+  #view-notes .card {
+    margin: 0;
+    border-radius: 0;
+    width: 100%;
+  }
+
+  /* --- Single scroll container: notes list only --- */
+  #view-notes {
+    height: calc(100vh - 110px); /* topbar + tabs */
+    overflow: hidden;
+  }
+
+  #notesIndexCard {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .notesLayout {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .notesMain {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* --- Hide collections sidebar by default on mobile --- */
+  .notesCollections {
+    display: none;
+  }
+
+  /* --- Mobile collections drawer (toggled via JS) --- */
+  body.notes-show-collections .notesCollections {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: var(--card);
+    padding: 12px;
+    overflow-y: auto;
+  }
+
+  body.notes-show-collections .notesMain {
+    display: none;
+  }
+
+  /* --- Filters must always be visible and wrap --- */
+  .notesIndexHeader {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .notesIndexHeader > * {
+    flex: 1 1 100%;
+  }
+
+  .notesIndexHeader .filterMulti,
+  .notesIndexHeader input {
+    width: 100%;
+  }
+
+  /* --- Search results: titles must wrap and never clip --- */
+  #notesList li {
+    align-items: flex-start;
+  }
+
+  .noteRow {
+    grid-template-columns: 1fr;
+    row-gap: 6px;
+  }
+
+  .noteCol--title {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    line-height: 1.3;
+  }
+
+  mark {
+    white-space: normal;
+  }
+
+}
+
+/* =========================================================
+   Notes — Collections toggle button visibility
+   ========================================================= */
+
+/* Hide collections toggle by default (desktop & tablets) */
+#view-notes .notesIndexHeader .btn.btn--ghost {
+  display: none;
+}
+
+/* Show ONLY on mobile */
+@media (max-width: 700px) {
+  #view-notes .notesIndexHeader .btn.btn--ghost {
+    display: inline-flex;
+  }
+}
+
+
+
