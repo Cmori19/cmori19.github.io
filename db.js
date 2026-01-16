@@ -15,7 +15,8 @@
     meals: "meals",
     mealPlans: "mealPlans",
     collections: "collections",
-    notes: "notes"
+    notes: "notes",
+    goals: "goals"
   };
 
   const idx = {
@@ -53,6 +54,8 @@
         ensureStore(STORES.mealPlans, { keyPath: "id" });
         ensureStore(STORES.notes, { keyPath: "id" });
         ensureStore(STORES.collections, { keyPath: "id" });
+        ensureStore(STORES.goals, { keyPath: "id" });
+
 
 
         const sTodos = req.transaction.objectStore(STORES.todos);
@@ -816,6 +819,37 @@ async function deleteCollection(id) {
   }
 }
 
+async function upsertGoal(input) {
+  const id = input.id || uid();
+  const existing = await getOne(STORES.goals, id);
+
+  const rec = existing && !existing._deleted ? existing : {
+    id,
+    createdAt: nowTs(),
+    ownerUid: currentUid(),
+    _deleted: false
+  };
+
+  rec.type = input.type;
+  rec.period = input.period ?? null;
+  rec.content = input.content ?? rec.content ?? {};
+  rec.updatedAt = nowTs();
+
+  await put(STORES.goals, rec);
+  return rec;
+}
+
+async function deleteGoal(id) {
+  const g = await getOne(STORES.goals, id);
+  if (!g || g._deleted) return;
+
+  g._deleted = true;
+  g.deletedAt = nowTs();
+  g.updatedAt = nowTs();
+  await put(STORES.goals, g);
+}
+
+
 
   window.DB = {
     STORES,
@@ -860,6 +894,8 @@ deleteHabit,
 archiveCollection,
 unarchiveCollection,
 deleteCollection,
+upsertGoal,
+deleteGoal,
     deleteNote
   };
 })();
