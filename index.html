@@ -289,14 +289,20 @@
 
             <div class="pane">
               <div class="paneHeader">
-                <div class="paneTitle" id="projectTitle">Project</div>
-                <div class="muted" id="projectMeta">—</div>
-              </div>
+  <div>
+    <div class="paneTitle" id="projectTitle">Project</div>
+    <div class="muted" id="projectMeta">—</div>
+  </div>
+</div>
+              <button id="btnToggleProjectNotes" class="btn btn--ghost" type="button">
+  Show project notes
+</button>
 
-              <div class="field">
-                <label>Project notes</label>
-                <textarea id="projectNotes" class="textarea autosize" rows="4" placeholder="Notes for this project…"></textarea>
-              </div>
+<div id="projectNotesWrap" class="field hidden">
+  <label>Project notes</label>
+  <textarea id="projectNotes" class="textarea autosize" rows="4" placeholder="Notes for this project…"></textarea>
+</div>
+
 
               <div class="filterRow">
                 <div class="filterMulti">
@@ -309,18 +315,29 @@
                   <div id="actionFilterStatusPanel2" class="filterPanel hidden" tabindex="-1"></div>
                 </div>
 
-                <div class="filterSingle">
-                  <select id="actionSort2" class="select">
-                    <option value="dueAsc">Due (earliest)</option>
-                    <option value="dueDesc">Due (latest)</option>
-                    <option value="priorityDesc">Priority (high)</option>
-                    <option value="priorityAsc">Priority (low)</option>
-                    <option value="createdDesc">Created (newest)</option>
-                  </select>
-                </div>
+                
               </div>
+              
 
-              <ul id="actionList2" class="list"></ul>
+<button id="btnToggleProjectActions" class="btn btn--ghost" type="button">
+  Show actions
+</button>
+
+<div id="projectActionsWrap" class="hidden">
+  <ul id="actionList2" class="list"></ul>
+</div>
+
+
+
+<button id="btnToggleProjectNotesLinked" class="btn btn--ghost" type="button">
+  Show linked notes
+</button>
+
+<div id="projectLinkedNotesWrap" class="hidden">
+  <ul id="projectLinkedNotesList" class="list"></ul>
+</div>
+
+
             </div>
           </div>
         </div>
@@ -384,7 +401,11 @@
           </div>
 
           <input id="habitRefDate" class="input input--date" type="date" />
-          <!-- Monthly habit filters removed -->
+<div id="monthlyHabitSelectWrap" class="hidden">
+  <select id="monthlyHabitSelect" class="select">
+    <option value="">All habits</option>
+  </select>
+</div>
         </div>
 
         <div id="habitWeeklyWrap"></div>
@@ -454,9 +475,16 @@
   placeholder="Search notes…"
 />
 
-  <select id="notesProjectFilter">
-    <option value="">All projects</option>
-  </select>
+  <div class="filterMulti">
+  <button id="notesProjectFilterBtn" class="filterBtn" type="button">Projects</button>
+  <div id="notesProjectFilterPanel" class="filterPanel hidden" tabindex="-1"></div>
+</div>
+
+<div class="filterMulti">
+  <button id="notesCollectionFilterBtn" class="filterBtn" type="button">Collections</button>
+  <div id="notesCollectionFilterPanel" class="filterPanel hidden" tabindex="-1"></div>
+</div>
+
 </div>
 
         <div class="notesLayout">
@@ -721,6 +749,29 @@
     </div>
   </div>
 
+  <!-- Note edit modal -->
+<div id="noteModal" class="modal hidden">
+  <div class="backdrop" id="noteModalBackdrop"></div>
+
+  <div class="modalCard">
+    <div class="modalHeader">
+      <div class="modalTitle">Edit note</div>
+      <button id="btnCloseNoteModal" class="iconBtn" type="button">×</button>
+    </div>
+
+    <div class="field">
+      <label>Title</label>
+      <input id="modalNoteTitle" class="input" />
+    </div>
+
+    <div class="field">
+      <label>Body</label>
+      <textarea id="modalNoteBody" class="textarea autosize" rows="8"></textarea>
+    </div>
+  </div>
+</div>
+
+
   <!-- Meal modal -->
   <div id="mealModal" class="modal hidden">
     <div id="mealBackdrop" class="backdrop"></div>
@@ -790,6 +841,21 @@
     <button class="btn btn--primary" id="btnSaveProject">Save</button>
   </div>
 </div>
+
+<!-- Meal picker modal -->
+<div id="mealPickerModal" class="modal hidden">
+  <div class="backdrop" id="mealPickerBackdrop"></div>
+
+  <div class="modalCard">
+    <div class="modalHeader">
+      <div class="modalTitle">Select meal</div>
+      <button class="iconBtn" id="btnCloseMealPicker">×</button>
+    </div>
+
+    <ul id="mealPickerList" class="list"></ul>
+  </div>
+</div>
+
 
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
