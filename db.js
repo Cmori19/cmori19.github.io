@@ -849,6 +849,31 @@ async function deleteGoal(id) {
   await put(STORES.goals, g);
 }
 
+// ==========================================================
+// Permanent purge of soft-deleted records (Trash retention)
+// ==========================================================
+async function purgeDeletedOlderThan(cutoffTs) {
+  for (const store of Object.values(STORES)) {
+    const all = await getAll(store);
+
+    for (const rec of all) {
+      if (!rec || !rec._deleted || !rec.deletedAt) continue;
+
+      if (rec.deletedAt < cutoffTs) {
+        const key =
+          rec.id ??
+          rec.date ??
+          rec.key;
+
+        if (key !== undefined) {
+          await del(store, key);
+        }
+      }
+    }
+  }
+}
+
+
 
 
   window.DB = {
@@ -896,6 +921,7 @@ unarchiveCollection,
 deleteCollection,
 upsertGoal,
 deleteGoal,
+purgeDeletedOlderThan,
     deleteNote
   };
 })();
