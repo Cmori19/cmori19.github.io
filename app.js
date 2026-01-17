@@ -446,6 +446,57 @@ const notesProjectFilter = $("notesProjectFilter");
   const collectionList = $("collectionList");
 const btnAddCollection = $("btnAddCollection");
 
+// Notes — mobile inline collections toggle (NOT a sidebar)
+const isNotesMobile = () => window.matchMedia("(max-width: 700px)").matches;
+
+const btnToggleCollectionsInline = document.createElement("button");
+btnToggleCollectionsInline.type = "button";
+btnToggleCollectionsInline.className = "btn btn--ghost";
+btnToggleCollectionsInline.textContent = "Show collections";
+
+// Insert toggle into Notes header (mobile only via CSS)
+requestAnimationFrame(() => {
+  const header = document.querySelector("#view-notes .notesIndexHeader");
+  if (!header) return;
+
+  if (!header.contains(btnToggleCollectionsInline)) {
+    header.insertBefore(btnToggleCollectionsInline, header.firstChild);
+  }
+});
+
+btnToggleCollectionsInline.addEventListener("click", () => {
+  if (!isNotesMobile()) return;
+
+  const visible = !collectionList.classList.contains("hidden");
+  collectionList.classList.toggle("hidden", visible);
+  btnToggleCollectionsInline.textContent =
+    visible ? "Show collections" : "Hide collections";
+});
+
+
+// Notes — mobile Collections toggle (one-time setup)
+btnNotesCollectionsToggle.classList.add("notesCollectionsToggle");
+
+requestAnimationFrame(() => {
+  const notesHeader = document.querySelector("#view-notes .notesIndexHeader");
+  if (!notesHeader) return;
+
+  if (!notesHeader.contains(btnNotesCollectionsToggle)) {
+    notesHeader.insertBefore(btnNotesCollectionsToggle, notesHeader.firstChild);
+  }
+});
+
+btnNotesCollectionsToggle.addEventListener("click", () => {
+  if (!isNotesMobile()) return;
+});
+
+// Safety: close drawer if viewport grows to desktop
+window.addEventListener("resize", () => {
+  if (!isNotesMobile()) {
+  }
+});
+
+
 
 
 const btnToggleArchivedCollections = $("btnToggleArchivedCollections");
@@ -582,6 +633,130 @@ notesCollections: new Set(["__ALL__"])
   /* ---------------------------------------------------------
      Utilities
   --------------------------------------------------------- */
+
+  /* ---------------------------------------------------------
+   Trash / Bin
+--------------------------------------------------------- */
+
+const btnOpenBin = $("btnOpenBin");
+const binModal = $("binModal");
+const binBackdrop = $("binBackdrop");
+const btnCloseBin = $("btnCloseBin");
+const binList = $("binList");
+
+const BIN_RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function showBin() {
+  renderBin();
+  showModal(binModal);
+}
+
+btnOpenBin?.addEventListener("click", showBin);
+btnCloseBin?.addEventListener("click", () => hideModal(binModal));
+binBackdrop?.addEventListener("click", () => hideModal(binModal));
+
+async function renderBin() {
+  if (!binList) return;
+
+  const now = Date.now();
+  binList.innerHTML = "";
+
+  const STORES = window.DB.STORES;
+  const labelFor = {
+    notes: "Note",
+    journal: "Journal",
+    projects: "Project",
+    actions: "Action",
+    habits: "Habit",
+    meals: "Meal",
+    goals: "Goal"
+  };
+
+  for (const [storeKey, storeName] of Object.entries(STORES)) {
+    const items = await window.DB.getAll(storeName);
+
+    for (const item of items) {
+      if (!item._deleted || !item.deletedAt) continue;
+
+      const age = now - item.deletedAt;
+      
+
+      const row = document.createElement("div");
+      row.className = "menuItem";
+      row.style.display = "grid";
+      row.style.gridTemplateColumns = "140px 1fr 100px";
+      row.style.alignItems = "center";
+      row.style.gap = "8px";
+
+      const type = document.createElement("div");
+      type.textContent = labelFor[storeKey] || storeKey;
+
+      const label = document.createElement("div");
+
+const main =
+  item.title ||
+  item.name ||
+  item.text ||
+  item.date ||
+  item.period ||
+  "—";
+
+const deletedAt = item.deletedAt
+  ? new Date(item.deletedAt).toLocaleString()
+  : "—";
+
+label.innerHTML = `
+  <div><strong>${escapeHtml(main)}</strong></div>
+  <div class="muted">Deleted: ${escapeHtml(deletedAt)}</div>
+`;
+
+
+      const restore = document.createElement("button");
+      restore.className = "btn btn--ghost";
+      restore.textContent = "Restore";
+
+      restore.addEventListener("click", async () => {
+        await window.DB.put(storeName, {
+          ...item,
+          _deleted: false,
+          deletedAt: null,
+          updatedAt: Date.now()
+        });
+
+        try {
+          await window.Sync?.pushItem?.(storeKey, {
+            ...item,
+            _deleted: false,
+            deletedAt: null,
+            updatedAt: Date.now()
+          });
+        } catch {}
+
+        renderBin();
+        refreshAfterRestore(storeKey);
+      });
+
+      row.appendChild(type);
+      row.appendChild(label);
+      row.appendChild(restore);
+      binList.appendChild(row);
+    }
+  }
+
+  if (!binList.children.length) {
+    binList.innerHTML = `<div class="muted">No recently deleted items.</div>`;
+  }
+}
+
+function refreshAfterRestore(storeKey) {
+  if (storeKey === "notes") refreshNotes();
+  if (storeKey === "journal") refreshJournalIndex();
+  if (storeKey === "projects" || storeKey === "actions") refreshProjectsAndActions();
+  if (storeKey === "habits") refreshHabits();
+  if (storeKey === "meals") refreshMeals();
+  if (storeKey === "goals") refreshGoals();
+}
+
 
   async function openNoteEditModal(noteId) {
   currentNoteId = noteId;
@@ -1023,6 +1198,21 @@ function isTouchDevice() {
 
       hideModal(accountModal);
 
+      // --------------------------------------------------
+// 🔒 SAFE LOGIN CLEANUP
+// --------------------------------------------------
+// Remove ONLY data created while logged out (scratch data)
+// Preserve all authenticated offline data
+// --------------------------------------------------
+if (window.Sync && typeof window.Sync.discardUnauthenticatedLocalData === "function") {
+  try {
+    await window.Sync.discardUnauthenticatedLocalData(user.uid);
+  } catch (e) {
+    console.warn("Failed to discard unauthenticated local data:", e);
+  }
+}
+
+
 
       // IMPORTANT: DO NOT delete local data on login
       // Only pull data from Firebase and merge it
@@ -1076,53 +1266,7 @@ if (
 
 
 
- // 🔄 ONE-TIME initial sync on login (safe version)
-if (window.fbAuth) {
-  window.fbAuth.onAuthStateChanged(async () => {
-    updateTopbar();
-
-    const user = window.fbAuth.currentUser;
-
-    if (user) {
-      setAuthStatus(`Signed in as ${user.email}`);
-
-      // IMPORTANT: never wipe local data automatically
-      // Firebase should add missing data, not replace everything
-      // 1. Clear all local data
-await window.DB.importAll({}, { overwrite: true });
-
-// 2. Clear sync timestamps so cloud data is not skipped
-await window.DB.setSetting("sync.lastPullAt", 0);
-await window.DB.setSetting("sync.lastAt", 0);
-
-// 3. FULL re-download from Firebase
-if (window.Sync && typeof window.Sync.fullPullAllFromCloud === "function") {
-  try {
-    await window.Sync.fullPullAllFromCloud();
-  } catch (e) {
-    console.warn("Full cloud pull failed:", e);
-  }
-}
-
-// 4. Start normal delta sync
-if (window.Sync && typeof window.Sync.initialSync === "function") {
-  try {
-    await window.Sync.initialSync();
-  } catch (e) {
-    console.warn("Initial sync failed:", e);
-  }
-}
-
-    } else {
-      setAuthStatus("Not signed in.");
-    }
-  });
-}
-
-
-
-
-  window.addEventListener("online", updateTopbar);
+   window.addEventListener("online", updateTopbar);
   window.addEventListener("offline", updateTopbar);
 
   // Manual sync
@@ -1371,16 +1515,45 @@ for (const [tab, metricId] of Object.entries(metricMap)) {
   goalsViewMonthly?.addEventListener("click", () => setGoalsMode("monthly"));
 
   async function saveGoalDraft(goal) {
-    const rec = await window.DB.upsertGoal({
-      id: goal.id,
-      type: goal.type,
-      period: goal.period,
-      content: goal.content || {}
-    });
+  if (!goal || !goal.id) return null;
 
-    try { await window.Sync?.pushItem?.("goals", rec); } catch { /* ignore */ }
-    return rec;
+  const existing = await window.DB.getOne(
+    window.DB.STORES.goals,
+    goal.id
+  );
+
+  const content = goal.content || {};
+
+  // --------------------------------------------------
+  // 🔒 SAFETY GUARD:
+  // Do not overwrite an existing goal with empty content
+  // --------------------------------------------------
+
+  const hasAnyContent =
+    Object.values(content).some(
+      v => typeof v === "string" && v.trim().length > 0
+    );
+
+  if (existing && !hasAnyContent) {
+    return existing;
   }
+
+  const rec = await window.DB.upsertGoal({
+    id: goal.id,
+    type: goal.type,
+    period: goal.period,
+    content
+  });
+
+  try {
+    await window.Sync?.pushItem?.("goals", rec);
+  } catch {
+    /* ignore sync errors */
+  }
+
+  return rec;
+}
+
 
   function renderGoalsEditor(goal, opts = {}) {
     const { showBack } = opts;
@@ -1572,10 +1745,15 @@ for (const [tab, metricId] of Object.entries(metricMap)) {
     });
   }
 
-  btnAddGoalPeriod?.addEventListener("click", async () => {
-    if (goalsMode === "annual") return addAnnualGoal();
-    if (goalsMode === "monthly") return addMonthlyGoal();
-  });
+  const onAddGoal = async (e) => {
+  e.preventDefault();
+  if (goalsMode === "annual") return addAnnualGoal();
+  if (goalsMode === "monthly") return addMonthlyGoal();
+};
+
+btnAddGoalPeriod?.addEventListener("click", onAddGoal);
+btnAddGoalPeriod?.addEventListener("touchstart", onAddGoal, { passive: false });
+
 
   async function refreshGoals() {
     if (!goalsIndexWrap || !goalsDetailWrap) return;
@@ -1594,6 +1772,7 @@ for (const [tab, metricId] of Object.entries(metricMap)) {
       const g = await ensureLongTermGoal();
       currentGoalId = g.id;
       showGoalsDetail();
+      goalsDetailWrap.classList.remove("hidden");
       renderGoalsEditor(g, { showBack: false });
       return;
     }
@@ -1965,8 +2144,12 @@ if (expGoals.checked) {
       refreshNotes();
     }
     if (tab === "goals") {
-      if (typeof window.refreshGoals === "function") window.refreshGoals();
-    }
+  if (typeof window.refreshGoals === "function") {
+    requestAnimationFrame(() => {
+      window.refreshGoals();
+    });
+  }
+}
 
   }
 
@@ -2135,9 +2318,22 @@ document.getElementById("rolloverBackdrop")?.addEventListener("click", () => {
     setPressed(dashPeriodYear, p === "Year");
     refreshDashboard();
   }
-  dashPeriodWeek?.addEventListener("click", () => setDashboardPeriod("Week"));
-  dashPeriodMonth?.addEventListener("click", () => setDashboardPeriod("Month"));
-  dashPeriodYear?.addEventListener("click", () => setDashboardPeriod("Year"));
+  function bindDashboardPeriod(btn, period) {
+  if (!btn) return;
+
+  const handler = (e) => {
+    e.preventDefault();
+    setDashboardPeriod(period);
+  };
+
+  btn.addEventListener("click", handler);
+  btn.addEventListener("touchstart", handler, { passive: false });
+}
+
+bindDashboardPeriod(dashPeriodWeek, "Week");
+bindDashboardPeriod(dashPeriodMonth, "Month");
+bindDashboardPeriod(dashPeriodYear, "Year");
+
 
   async function refreshDashboard() {
     const dump = await window.DB.exportAll();
@@ -2896,37 +3092,48 @@ journalStress.value = rec?.stress ?? "";
   async function autosaveJournal() {
   if (!currentJournalDate) return;
 
-  const payload = {
-    date: currentJournalDate,
-    gratitude: jGratitude.value,
-    objectives: jObjectives.value,
-    mood: journalMood.value ? Number(journalMood.value) : null,
-    energy: journalEnergy.value ? Number(journalEnergy.value) : null,
-    stress: journalStress.value ? Number(journalStress.value) : null
-  };
+  const existing = await window.DB.getOne(
+    window.DB.STORES.journal,
+    currentJournalDate
+  );
 
-  // 🔒 Only write reflections if user has actually added/edited them
-  if (
-  currentReflections &&
-  typeof currentReflections === "object"
-) {
-  const cleaned = {};
+  const gratitude = jGratitude.value || "";
+  const objectives = jObjectives.value || "";
 
-  for (const [key, value] of Object.entries(currentReflections)) {
-    if (typeof value === "string" && value.trim().length > 0) {
-      cleaned[key] = value;
+  // Clean reflections
+  let cleanedReflections = {};
+  if (currentReflections && typeof currentReflections === "object") {
+    for (const [k, v] of Object.entries(currentReflections)) {
+      if (typeof v === "string" && v.trim().length > 0) {
+        cleanedReflections[k] = v;
+      }
     }
   }
 
-  // IMPORTANT:
-  // If reflections were removed, explicitly overwrite with {}
-  payload.reflections = cleaned;
-}
+  // 🔒 SAFETY GUARD:
+  // Do NOT overwrite an existing entry with completely empty content
+  const hasAnyContent =
+    gratitude.trim() ||
+    objectives.trim() ||
+    Object.keys(cleanedReflections).length > 0;
 
+  if (!hasAnyContent && existing) {
+    return;
+  }
 
+  const payload = {
+    date: currentJournalDate,
+    gratitude,
+    objectives,
+    mood: journalMood.value ? Number(journalMood.value) : null,
+    energy: journalEnergy.value ? Number(journalEnergy.value) : null,
+    stress: journalStress.value ? Number(journalStress.value) : null,
+    reflections: cleanedReflections
+  };
 
   await window.DB.upsertJournal(payload);
 }
+
 
 
   [jGratitude, jObjectives, jReflections].forEach((el) => {
@@ -4695,6 +4902,9 @@ requestAnimationFrame(() => {
 
   collectionList.appendChild(allLi);
 
+ 
+
+
   for (const c of collections) {
     const li = document.createElement("li");
 li.textContent = c.name + (c.archived ? " (archived)" : "");
@@ -4707,16 +4917,14 @@ li.textContent = c.name + (c.archived ? " (archived)" : "");
   refreshCollections();
 };
 
-li.addEventListener("dblclick", async () => {
+const openCollectionEditor = async () => {
   editingCollectionId = c.id;
 
   collectionModalTitle.textContent = "Edit collection";
   collectionNameInput.value = c.name;
 
-  // Toggle archive button label
   btnArchiveCollection.textContent = c.archived ? "Unarchive" : "Archive";
 
-  // Wire archive / unarchive
   btnArchiveCollection.onclick = async () => {
     if (c.archived) {
       await window.DB.unarchiveCollection(c.id);
@@ -4729,7 +4937,6 @@ li.addEventListener("dblclick", async () => {
     await refreshNotes();
   };
 
-  // Wire delete
   btnDeleteCollection.onclick = async () => {
     const ok = await confirmInApp({
       title: "Delete collection",
@@ -4744,11 +4951,27 @@ li.addEventListener("dblclick", async () => {
   };
 
   btnArchiveCollection.style.display = "";
-btnDeleteCollection.style.display = "";
+  btnDeleteCollection.style.display = "";
 
   showModal(collectionModal);
-});
+};
 
+/* Desktop: native double click */
+li.addEventListener("dblclick", openCollectionEditor);
+
+/* Mobile: double-tap detection */
+let lastTap = 0;
+
+li.addEventListener("touchend", (e) => {
+  if (!isNotesMobile()) return;
+
+  const now = Date.now();
+  if (now - lastTap < 300) {
+    e.preventDefault();
+    openCollectionEditor();
+  }
+  lastTap = now;
+});
 
 
 
@@ -4996,28 +5219,7 @@ noteProjectSelect?.addEventListener("change", () => {
 
  btnNewNote?.addEventListener("click", async () => {
 
-    // Toggle collections drawer (mobile)
-  btnNotesCollectionsToggle.addEventListener("click", () => {
-    document.body.classList.toggle("notes-show-collections");
-  });
-
-  // Close collections after selecting one (mobile UX)
-  document.getElementById("collectionList")?.addEventListener("click", () => {
-    document.body.classList.remove("notes-show-collections");
-  });
-
-    // Insert collections toggle into Notes header (mobile only)
-  requestAnimationFrame(() => {
-    const notesHeader = document.querySelector("#view-notes .notesIndexHeader");
-    if (!notesHeader) return;
-
-    if (!notesHeader.contains(btnNotesCollectionsToggle)) {
-      notesHeader.insertBefore(
-        btnNotesCollectionsToggle,
-        notesHeader.firstChild
-      );
-    }
-  });
+    
 
   const input = {
     title: "",
@@ -5048,18 +5250,55 @@ noteProjectSelect?.addEventListener("change", () => {
   async function autosaveNote() {
   if (!currentNoteId) return;
 
+  const existing = await window.DB.getOne(
+    window.DB.STORES.notes,
+    currentNoteId
+  );
+  if (!existing || existing._deleted) return;
+
   const title = (noteTitle.value || "").trim();
   const body = (noteBody.value || "").trim();
 
-  // If completely empty → delete note and exit
-  if (!title && !body) {
+  const now = Date.now();
+  const createdAt = existing.createdAt || now;
+  const ageMs = now - createdAt;
+
+  const hasAnyContent = title.length > 0 || body.length > 0;
+
+  // --------------------------------------------------
+  // 🔒 SAFE AUTO-DELETE RULE (drafts only)
+  // --------------------------------------------------
+  // Auto-delete ONLY if:
+  // - note has NEVER had content
+  // - still empty
+  // - very recently created (draft)
+  // --------------------------------------------------
+
+  const neverHadContent =
+    !(existing.title && existing.title.trim()) &&
+    !(existing.body && existing.body.trim());
+
+  const DRAFT_WINDOW_MS = 60 * 1000; // 60 seconds
+
+  if (
+    !hasAnyContent &&
+    neverHadContent &&
+    ageMs < DRAFT_WINDOW_MS
+  ) {
     await window.DB.deleteNote(currentNoteId);
     currentNoteId = null;
     await refreshNotes();
     return;
   }
 
-  const updatedAt = Date.now();
+  // --------------------------------------------------
+  // 🔒 NEVER overwrite existing content with empty UI
+  // --------------------------------------------------
+  if (!hasAnyContent) {
+    return;
+  }
+
+  const updatedAt = now;
 
   await window.DB.updateNote(currentNoteId, {
     title,
@@ -5071,6 +5310,7 @@ noteProjectSelect?.addEventListener("change", () => {
 
   noteUpdated.textContent = new Date(updatedAt).toLocaleString();
 }
+
 
 
   noteTitle?.addEventListener("input", () => debounce("note_autosave", 250, autosaveNote));
@@ -5113,6 +5353,19 @@ if (!ok) return;
   --------------------------------------------------------- */
 
   async function init() {
+
+    // --------------------------------------------------
+// Trash retention: purge items deleted > 7 days ago
+// --------------------------------------------------
+try {
+  const cutoff = Date.now() - BIN_RETENTION_MS;
+  if (window.DB.purgeDeletedOlderThan) {
+    await window.DB.purgeDeletedOlderThan(cutoff);
+  }
+} catch (e) {
+  console.warn("Trash purge failed:", e);
+}
+
     if (!window.DB) {
       alert("DB layer not available. Check that db.js is loading and defines window.DB.");
       return;
