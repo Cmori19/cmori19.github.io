@@ -1629,32 +1629,85 @@ for (const [tab, metricId] of Object.entries(metricMap)) {
 
     const content = goal.content || (goal.content = {});
 
-    for (const tag of REFLECTION_TAGS) {
-      const field = document.createElement("div");
-      field.className = "field";
+    // --------------------------------------------------
+// Goals editor: merge Health / Nutrition / Sleep
+// --------------------------------------------------
 
-      const lab = document.createElement("label");
-      lab.textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
-      field.appendChild(lab);
+// --------------------------------------------------
+// Goals editor: merge Health / Nutrition / Sleep
+// and place it just after Fitness
+// --------------------------------------------------
 
-      const ta = document.createElement("textarea");
-      ta.className = "textarea autosize";
-      ta.rows = 6;
-      ta.value = content[tag] || "";
+const mergedHealthTags = ["health", "nutrition", "sleep"];
 
-      ta.addEventListener("input", () => {
-        content[tag] = ta.value || "";
-        debounce(`goal_autosave_${goal.id}`, 250, async () => {
-          await saveGoalDraft(goal);
-        });
-        autosizeTextarea(ta);
+for (const tag of REFLECTION_TAGS) {
+
+  // Insert merged field immediately after Fitness
+  if (tag === "fitness") {
+    const field = document.createElement("div");
+    field.className = "field";
+
+    const lab = document.createElement("label");
+    lab.textContent = "Health / Nutrition / Sleep";
+    field.appendChild(lab);
+
+    const ta = document.createElement("textarea");
+    ta.className = "textarea autosize";
+    ta.rows = 6;
+
+    ta.value = mergedHealthTags
+      .map(t => goal.content?.[t]?.trim())
+      .filter(Boolean)
+      .join("\n\n");
+
+    ta.addEventListener("input", () => {
+      const val = ta.value || "";
+      for (const t of mergedHealthTags) {
+        goal.content[t] = val;
+      }
+      debounce(`goal_autosave_${goal.id}`, 250, async () => {
+        await saveGoalDraft(goal);
       });
-
-      field.appendChild(ta);
-      goalsDetailWrap.appendChild(field);
-
       autosizeTextarea(ta);
-    }
+    });
+
+    field.appendChild(ta);
+    goalsDetailWrap.appendChild(field);
+    autosizeTextarea(ta);
+  }
+
+  // Skip original health / nutrition / sleep fields
+  if (mergedHealthTags.includes(tag)) {
+    continue;
+  }
+
+  // Render all other tags normally
+  const field = document.createElement("div");
+  field.className = "field";
+
+  const lab = document.createElement("label");
+  lab.textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
+  field.appendChild(lab);
+
+  const ta = document.createElement("textarea");
+  ta.className = "textarea autosize";
+  ta.rows = 6;
+  ta.value = goal.content[tag] || "";
+
+  ta.addEventListener("input", () => {
+    goal.content[tag] = ta.value || "";
+    debounce(`goal_autosave_${goal.id}`, 250, async () => {
+      await saveGoalDraft(goal);
+    });
+    autosizeTextarea(ta);
+  });
+
+  field.appendChild(ta);
+  goalsDetailWrap.appendChild(field);
+  autosizeTextarea(ta);
+}
+
+
   }
 
   async function openGoal(id) {
