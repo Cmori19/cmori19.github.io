@@ -16,7 +16,7 @@
     </div>
 
     <div class="topbar__right">
-      <button id="btnRefreshDashboard" class="iconBtn" title="Refresh">↻</button>
+<button id="btnOpenBin" class="iconBtn" title="Trash">🗑</button>
       <button id="btnTheme" class="iconBtn" title="Theme & font">🎨</button>
       <button id="btnExportPDF" class="iconBtn" title="Export to PDF">⤓</button>
       <button id="btnSettings" class="iconBtn" title="Settings">⚙</button>
@@ -922,12 +922,40 @@
   </div>
 </div>
 
+<!-- Trash / Bin modal -->
+<div id="binModal" class="modal hidden">
+  <div id="binBackdrop" class="backdrop"></div>
+
+  <div class="modalCard">
+    <div class="modalHeader">
+      <div class="modalTitle">Recently deleted</div>
+      <button id="btnCloseBin" class="iconBtn" type="button">×</button>
+    </div>
+
+    <div class="field muted">
+      Items are permanently deleted after 7 days.
+    </div>
+
+    <div class="grid" style="grid-template-columns: 140px 1fr 100px; gap:8px">
+      <div class="small"><strong>Type</strong></div>
+      <div class="small"><strong>Record</strong></div>
+      <div class="small"></div>
+
+      <div id="binList" style="grid-column:1 / -1"></div>
+    </div>
+  </div>
+</div>
+
+
 
 <script src="db.js"></script>
 <script src="sync.js"></script>
 
 <!-- App logic (LAST) -->
+ 
 <script src="app.js"></script>
+
+
 
 </body>
 
