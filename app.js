@@ -470,8 +470,43 @@ notesDrawerBackdrop?.addEventListener("click", closeNotesDrawer);
 // Mirror desktop collections into mobile drawer
 async function refreshCollectionsMobile() {
   if (!collectionListMobile) return;
+
+  // Clone markup
   collectionListMobile.innerHTML = collectionList.innerHTML;
+
+  // Re-bind behaviour for mobile drawer items
+  const items = collectionListMobile.querySelectorAll("li");
+
+  items.forEach((li) => {
+    const text = li.textContent || "";
+    if (!text) return;
+
+    li.addEventListener("click", () => {
+      // Match by collection name
+      const name = text.replace(" (archived)", "").trim();
+
+      if (name === "All notes") {
+        notesMode = "all";
+        selectedCollectionId = null;
+        filterState.notesCollections.clear();
+        filterState.notesCollections.add("__ALL__");
+      } else {
+        const match = lastCollectionsCache?.find(c => c.name === name);
+        if (!match) return;
+
+        selectedCollectionId = match.id;
+        notesMode = "collection";
+        filterState.notesCollections.clear();
+        filterState.notesCollections.add(match.id);
+      }
+
+      closeNotesDrawer();
+      refreshNotes();
+      refreshCollections();
+    });
+  });
 }
+
 
 btnAddCollectionMobile?.addEventListener("click", () => {
   closeNotesDrawer();
@@ -596,6 +631,7 @@ let rolloverSelectedDate = null;
   let showArchivedCollections = false;
   let selectedNotesProjectId = null;
   let notesMode = "all"; // "all" or "collection"
+let lastCollectionsCache = [];
 
 
 
@@ -5085,6 +5121,9 @@ requestAnimationFrame(() => {
   async function refreshCollections() {
   const allCollections = (await window.DB.getAll(window.DB.STORES.collections))
   .filter(c => !c._deleted);
+
+  lastCollectionsCache = allCollections.slice();
+
 
 const activeCollections = allCollections.filter(c => !c.archived);
 const archivedCollections = allCollections.filter(c => c.archived);
