@@ -437,7 +437,6 @@ mealPickerBackdrop?.addEventListener("click", () => {
   const notesList = $("notesList");
   const noteCollectionSelect = $("noteCollectionSelect");
 const noteProjectSelect = $("noteProjectSelect");
-const notesProjectFilter = $("notesProjectFilter");
   const collectionList = $("collectionList");
 const btnAddCollection = $("btnAddCollection");
 
@@ -2244,7 +2243,7 @@ if (expGoals.checked) {
      Tabs
   --------------------------------------------------------- */
 
-  function setTab(tab) {
+  async function setTab(tab) {
     for (const t of views) {
       const v = $("view-" + t);
       const btn = $("tab-" + t);
@@ -2271,10 +2270,23 @@ if (expGoals.checked) {
     if (tab === "habits") { refreshHabits(); refreshHabitTrack(); }
     if (tab === "meals") refreshMeals();
     if (tab === "notes") {
-      refreshCollections();
-      refreshNotesProjectFilter();
-      refreshNotes();
-    }
+  notesMode = "all";
+  selectedCollectionId = null;
+
+  filterState.notesCollections.clear();
+  filterState.notesCollections.add("__ALL__");
+
+  // 🔑 build filters ONCE for desktop
+  if (window.matchMedia("(min-width: 601px)").matches) {
+    await buildNotesFilters();
+  }
+
+  refreshCollections();
+  refreshNotesProjectFilter();
+  refreshNotes();
+}
+
+
     if (tab === "goals") {
   if (typeof window.refreshGoals === "function") {
     requestAnimationFrame(() => {
@@ -5069,9 +5081,12 @@ requestAnimationFrame(() => {
 
 
   async function refreshCollections() {
-  const collections = (await window.DB.getAll(window.DB.STORES.collections))
-  .filter(c => !c._deleted)
-  .filter(c => showArchivedCollections || !c.archived);
+  const allCollections = (await window.DB.getAll(window.DB.STORES.collections))
+  .filter(c => !c._deleted);
+
+const activeCollections = allCollections.filter(c => !c.archived);
+const archivedCollections = allCollections.filter(c => c.archived);
+
 
 
   collectionList.innerHTML = "";
@@ -5099,7 +5114,7 @@ requestAnimationFrame(() => {
  
 
 
-  for (const c of collections) {
+  for (const c of activeCollections) {
     const li = document.createElement("li");
 li.textContent = c.name + (c.archived ? " (archived)" : "");
     li.className = selectedCollectionId === c.id ? "active" : "";
@@ -5116,6 +5131,9 @@ li.textContent = c.name + (c.archived ? " (archived)" : "");
   refreshNotes();
   refreshCollections();
 };
+
+
+
 
 
 const openCollectionEditor = async () => {
@@ -5171,7 +5189,8 @@ li.addEventListener("touchend", (e) => {
     e.preventDefault();
     openCollectionEditor();
   }
-  lastTap = now;
+
+    lastTap = now;
 });
 
 
@@ -5179,6 +5198,36 @@ li.addEventListener("touchend", (e) => {
 refreshCollectionsMobile();
     collectionList.appendChild(li);
   }
+
+  if (showArchivedCollections) {
+  for (const c of archivedCollections) {
+    const li = document.createElement("li");
+    li.textContent = c.name + " (archived)";
+    li.className = selectedCollectionId === c.id ? "active" : "";
+
+    li.onclick = () => {
+      selectedCollectionId = c.id;
+      notesMode = "collection";
+
+      filterState.notesCollections.clear();
+      filterState.notesCollections.add(c.id);
+
+      showNotesIndex();
+      refreshNotes();
+      refreshCollections();
+    };
+
+    li.addEventListener("dblclick", () => {
+      editingCollectionId = c.id;
+      collectionModalTitle.textContent = "Edit collection";
+      collectionNameInput.value = c.name;
+      btnArchiveCollection.textContent = "Unarchive";
+      showModal(collectionModal);
+    });
+
+    collectionList.appendChild(li);
+  }
+}
 }
 btnAddCollection?.addEventListener("click", () => {
   editingCollectionId = null;
@@ -5196,34 +5245,47 @@ btnCloseCollectionModal?.addEventListener("click", () => hideModal(collectionMod
 collectionBackdrop?.addEventListener("click", () => hideModal(collectionModal));
 
 btnSaveCollection?.addEventListener("click", async () => {
-  const name = (collectionNameInput.value || "").trim();
-  if (!name) return;
+  try {
+    const name = (collectionNameInput.value || "").trim();
+    if (!name) return;
 
-  if (editingCollectionId) {
-    const existing = await window.DB.getOne(window.DB.STORES.collections, editingCollectionId);
-    if (!existing) return;
+    if (editingCollectionId) {
+      const existing = await window.DB.getOne(
+        window.DB.STORES.collections,
+        editingCollectionId
+      );
+      if (!existing) return;
 
-    await window.DB.put(window.DB.STORES.collections, {
-      ...existing,
-      name,
-      updatedAt: Date.now()
-    });
-  } else {
-    await window.DB.put(window.DB.STORES.collections, {
-  id: crypto.randomUUID(),
-  name,
-  archived: false,
-  createdAt: Date.now(),
-  updatedAt: Date.now(),
-  _deleted: false
-});
+      await window.DB.put(window.DB.STORES.collections, {
+        ...existing,
+        name,
+        updatedAt: Date.now()
+      });
+    } else {
+      const id =
+        (window.crypto && typeof window.crypto.randomUUID === "function")
+          ? window.crypto.randomUUID()
+          : ("c_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2));
 
+      await window.DB.put(window.DB.STORES.collections, {
+        id,
+        name,
+        archived: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        _deleted: false
+      });
+    }
+
+    hideModal(collectionModal);
+    await refreshCollections();
+    await refreshNotes();
+  } catch (e) {
+    alert(e?.message || String(e));
+    console.error(e);
   }
-
-  hideModal(collectionModal);
-  await refreshCollections();
-  await refreshNotes();
 });
+
 
 
 async function populateNotesProjectFilter() {
@@ -5242,8 +5304,8 @@ async function populateNotesProjectFilter() {
 
 
   async function refreshNotes() {
-  showNotesIndex();
-  await buildNotesFilters();
+if (window.matchMedia("(min-width: 601px)").matches) {
+}
 
 
   if (notesSearchInput) {
@@ -5310,6 +5372,18 @@ if (!projSet.has("__ALL__")) {
     n.projectId && projSet.has(n.projectId)
   );
 }
+
+// ---------- Collection filter (desktop filter, not sidebar) ----------
+if (notesMode !== "collection") {
+  const colSet = filterState.notesCollections;
+
+  if (!colSet.has("__ALL__")) {
+    filteredNotes = filteredNotes.filter(n =>
+      n.collectionId && colSet.has(n.collectionId)
+    );
+  }
+}
+
 
 
   // --------------------------------------------------
@@ -5415,15 +5489,9 @@ noteProjectSelect?.addEventListener("change", () => {
 });
 
 
-  notesProjectFilter?.addEventListener("change", () => {
-  selectedNotesProjectId = notesProjectFilter.value || null;
-  refreshNotes();
-});
+ 
 
  btnNewNote?.addEventListener("click", async () => {
-
-    
-
   const input = {
     title: "",
     body: ""
@@ -5439,14 +5507,13 @@ noteProjectSelect?.addEventListener("change", () => {
 
   const rec = await window.DB.upsertNote(input);
 
-  await refreshNotes();
+  // IMPORTANT: open editor FIRST
   await openNote(rec.id);
 
-  requestAnimationFrame(() => {
-    noteTitle.focus();
-    noteTitle.select();
-  });
+  // THEN refresh list (without forcing index)
+  await refreshNotes();
 });
+
 
 
 
@@ -5619,7 +5686,6 @@ await maybeRunDailyTodoRollover();
 
     setTab("dashboard");
     await refreshCollections();
-    await buildNotesFilters();
     await refreshNotesProjectFilter();
 
   }
