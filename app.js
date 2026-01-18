@@ -433,11 +433,6 @@ mealPickerBackdrop?.addEventListener("click", () => {
   const notesIndexCard = $("notesIndexCard");
   const notesDetailCard = $("notesDetailCard");
   const btnNewNote = $("btnNewNote");
-    const btnNotesCollectionsToggle = document.createElement("button");
-  btnNotesCollectionsToggle.className = "btn btn--ghost";
-  btnNotesCollectionsToggle.type = "button";
-  btnNotesCollectionsToggle.textContent = "Collections";
-
   const notesSearchInput = $("notesSearchInput");
   const notesList = $("notesList");
   const noteCollectionSelect = $("noteCollectionSelect");
@@ -446,55 +441,42 @@ const notesProjectFilter = $("notesProjectFilter");
   const collectionList = $("collectionList");
 const btnAddCollection = $("btnAddCollection");
 
-// Notes — mobile inline collections toggle (NOT a sidebar)
-const isNotesMobile = () => window.matchMedia("(max-width: 700px)").matches;
 
-const btnToggleCollectionsInline = document.createElement("button");
-btnToggleCollectionsInline.type = "button";
-btnToggleCollectionsInline.className = "btn btn--ghost";
-btnToggleCollectionsInline.textContent = "Show collections";
 
-// Insert toggle into Notes header (mobile only via CSS)
-requestAnimationFrame(() => {
-  const header = document.querySelector("#view-notes .notesIndexHeader");
-  if (!header) return;
 
-  if (!header.contains(btnToggleCollectionsInline)) {
-    header.insertBefore(btnToggleCollectionsInline, header.firstChild);
-  }
+
+
+// Notes collections drawer (mobile)
+const btnNotesOpenCollections = $("btnNotesOpenCollections");
+const notesDrawer = $("notesCollectionsDrawer");
+const notesDrawerBackdrop = $("notesCollectionsBackdrop");
+const btnCloseNotesDrawer = $("btnCloseNotesDrawer");
+const collectionListMobile = $("collectionListMobile");
+const btnAddCollectionMobile = $("btnAddCollectionMobile");
+
+function openNotesDrawer() {
+  notesDrawer?.classList.remove("hidden");
+}
+
+function closeNotesDrawer() {
+  notesDrawer?.classList.add("hidden");
+}
+
+btnNotesOpenCollections?.addEventListener("click", openNotesDrawer);
+btnCloseNotesDrawer?.addEventListener("click", closeNotesDrawer);
+notesDrawerBackdrop?.addEventListener("click", closeNotesDrawer);
+
+// Mirror desktop collections into mobile drawer
+async function refreshCollectionsMobile() {
+  if (!collectionListMobile) return;
+  collectionListMobile.innerHTML = collectionList.innerHTML;
+}
+
+btnAddCollectionMobile?.addEventListener("click", () => {
+  closeNotesDrawer();
+  btnAddCollection.click();
 });
 
-btnToggleCollectionsInline.addEventListener("click", () => {
-  if (!isNotesMobile()) return;
-
-  const visible = !collectionList.classList.contains("hidden");
-  collectionList.classList.toggle("hidden", visible);
-  btnToggleCollectionsInline.textContent =
-    visible ? "Show collections" : "Hide collections";
-});
-
-
-// Notes — mobile Collections toggle (one-time setup)
-btnNotesCollectionsToggle.classList.add("notesCollectionsToggle");
-
-requestAnimationFrame(() => {
-  const notesHeader = document.querySelector("#view-notes .notesIndexHeader");
-  if (!notesHeader) return;
-
-  if (!notesHeader.contains(btnNotesCollectionsToggle)) {
-    notesHeader.insertBefore(btnNotesCollectionsToggle, notesHeader.firstChild);
-  }
-});
-
-btnNotesCollectionsToggle.addEventListener("click", () => {
-  if (!isNotesMobile()) return;
-});
-
-// Safety: close drawer if viewport grows to desktop
-window.addEventListener("resize", () => {
-  if (!isNotesMobile()) {
-  }
-});
 
 
 
@@ -634,6 +616,49 @@ notesCollections: new Set(["__ALL__"])
      Utilities
   --------------------------------------------------------- */
 
+  async function syncDueActionsToTodayTodos(todayISO) {
+  // Load all actions and todos
+  const actions = (await window.DB.getAll(window.DB.STORES.actions))
+    .filter(a => !a._deleted && a.status !== "Completed");
+
+  const todos = await window.DB.getAll(window.DB.STORES.todos);
+
+  // Index existing todos by actionId for today
+  const todosTodayByAction = new Set(
+    todos
+      .filter(t =>
+        !t._deleted &&
+        t.date === todayISO &&
+        t.actionId
+      )
+      .map(t => t.actionId)
+  );
+
+  for (const a of actions) {
+    if (!a.dueDate) continue;
+    if (a.dueDate !== todayISO) continue;
+
+    // Skip if already exists
+    if (todosTodayByAction.has(a.id)) continue;
+
+    // Ensure today list exists
+    await window.DB.ensureTodoList(todayISO);
+
+    // Create linked to-do
+    await window.DB.upsertTodo({
+      date: todayISO,
+      text: a.title,
+      status: "Open",
+      priority: a.priority || "Medium",
+      notes: a.notes || "",
+      dueDate: a.dueDate || "",
+      projectId: a.projectId || null,
+      actionId: a.id
+    });
+  }
+}
+
+
   /* ---------------------------------------------------------
    Trash / Bin
 --------------------------------------------------------- */
@@ -711,35 +736,81 @@ label.innerHTML = `
 `;
 
 
-      const restore = document.createElement("button");
-      restore.className = "btn btn--ghost";
-      restore.textContent = "Restore";
+      const actions = document.createElement("div");
+actions.style.display = "flex";
+actions.style.gap = "6px";
 
-      restore.addEventListener("click", async () => {
-        await window.DB.put(storeName, {
-          ...item,
-          _deleted: false,
-          deletedAt: null,
-          updatedAt: Date.now()
-        });
+// Restore button
+const restore = document.createElement("button");
+restore.className = "btn btn--ghost";
+restore.textContent = "Restore";
 
-        try {
-          await window.Sync?.pushItem?.(storeKey, {
-            ...item,
-            _deleted: false,
-            deletedAt: null,
-            updatedAt: Date.now()
-          });
-        } catch {}
+restore.addEventListener("click", async () => {
+  await window.DB.put(storeName, {
+    ...item,
+    _deleted: false,
+    deletedAt: null,
+    updatedAt: Date.now()
+  });
 
-        renderBin();
-        refreshAfterRestore(storeKey);
-      });
+  try {
+    await window.Sync?.pushItem?.(storeKey, {
+      ...item,
+      _deleted: false,
+      deletedAt: null,
+      updatedAt: Date.now()
+    });
+  } catch {}
 
-      row.appendChild(type);
-      row.appendChild(label);
-      row.appendChild(restore);
-      binList.appendChild(row);
+  renderBin();
+  refreshAfterRestore(storeKey);
+});
+
+// Permanent delete button
+const del = document.createElement("button");
+del.className = "iconBtn";
+del.title = "Delete permanently";
+del.textContent = "🗑";
+
+del.addEventListener("click", async () => {
+  const ok = await confirmInApp({
+    title: "Delete permanently",
+    message: "This item will be permanently deleted and cannot be restored."
+  });
+
+  if (!ok) return;
+
+  // 🔑 Force item to be eligible for immediate purge
+  const expired = {
+    ...item,
+    _deleted: true,
+    deletedAt: 0,          // 🔥 older than any retention window
+    updatedAt: Date.now()
+  };
+
+ await window.DB.put(storeName, expired);
+
+// 🔑 Purge using NORMAL retention cutoff
+const cutoff = Date.now() - BIN_RETENTION_MS;
+await window.DB.purgeDeletedOlderThan(cutoff);
+
+await renderBin();
+
+});
+
+
+
+
+
+
+actions.appendChild(restore);
+actions.appendChild(del);
+
+row.appendChild(type);
+row.appendChild(label);
+row.appendChild(actions);
+binList.appendChild(row);
+
     }
   }
 
@@ -880,16 +951,24 @@ function isTouchDevice() {
   const last = await window.DB.getSetting("ui.lastTodoRollover", null);
 
   if (last === today) return;
-  if (typeof window.DB.rolloverTodosToToday !== "function") return;
 
-  await window.DB.rolloverTodosToToday(today);
+  // 1. Roll over failed todos (existing logic)
+  if (typeof window.DB.rolloverTodosToToday === "function") {
+    await window.DB.rolloverTodosToToday(today);
+  }
+
+  // 2. 🔑 NEW: auto-add due actions to today
+  await syncDueActionsToTodayTodos(today);
+
+  // 3. Mark as processed for today
   await window.DB.setSetting("ui.lastTodoRollover", today);
 
-  // Refresh UI after rollover
+  // 4. Refresh UI
   refreshTodoIndex();
   refreshTodoDetail();
   refreshDashboard();
 }
+
 
 
   function parseISO(yyyyMmDd) {
@@ -2741,22 +2820,31 @@ const items = allTodos.filter(t =>
 
 
 items.sort((a, b) => {
+  // 🔑 Completed items always last
+  const aDone = a.status === "Completed";
+  const bDone = b.status === "Completed";
+  if (aDone !== bDone) return aDone ? 1 : -1;
+
+  // Priority (unchanged)
   const prio =
     prioRank(b.priority || "Medium") -
     prioRank(a.priority || "Medium");
   if (prio !== 0) return prio;
 
+  // Status (Open > In Progress)
   const statusRank = s =>
-    s === "In Progress" ? 3 :
-    s === "Open" ? 2 : 1;
+    s === "In Progress" ? 2 :
+    s === "Open" ? 1 : 0;
 
   const status =
     statusRank(b.status || "Open") -
     statusRank(a.status || "Open");
   if (status !== 0) return status;
 
+  // Created date (older first)
   return (a.createdAt || 0) - (b.createdAt || 0);
 });
+
 
 
 
@@ -3576,6 +3664,41 @@ function renderReflectionSections() {
 
     await window.DB.syncTodosFromAction(saved.id);
 
+    // --------------------------------------------------
+// 🔑 NEW: auto-create today's to-do if due today
+// --------------------------------------------------
+const today = todayStrISO();
+
+if (
+  saved &&
+  saved.status !== "Completed" &&
+  saved.dueDate === today
+) {
+  const todos = await window.DB.getAll(window.DB.STORES.todos);
+
+  const exists = todos.some(t =>
+    !t._deleted &&
+    t.date === today &&
+    t.actionId === saved.id
+  );
+
+  if (!exists) {
+    await window.DB.ensureTodoList(today);
+
+    await window.DB.upsertTodo({
+      date: today,
+      text: saved.title,
+      status: "Open",
+      priority: saved.priority || "Medium",
+      notes: saved.notes || "",
+      dueDate: saved.dueDate || "",
+      projectId: saved.projectId || null,
+      actionId: saved.id
+    });
+  }
+}
+
+
 
     hideModal(actionModal);
 
@@ -3878,30 +4001,36 @@ actions = actions.filter(a => !archivedProjectIds.has(a.projectId));
     const sortMode = actionSort?.value || "dueAsc";
 
     filtered.sort((a, b) => {
-  // 1. Priority
+  // 🔑 Completed items always last
+  const aDone = a.status === "Completed";
+  const bDone = b.status === "Completed";
+  if (aDone !== bDone) return aDone ? 1 : -1;
+
+  // Priority
   const prio =
     prioRank(b.priority || "Medium") -
     prioRank(a.priority || "Medium");
   if (prio !== 0) return prio;
 
-  // 2. Status
+  // Status (Open > In Progress)
   const statusRank = s =>
-    s === "In Progress" ? 3 :
-    s === "Open" ? 2 : 1;
+    s === "In Progress" ? 2 :
+    s === "Open" ? 1 : 0;
 
   const status =
     statusRank(b.status || "Open") -
     statusRank(a.status || "Open");
   if (status !== 0) return status;
 
-  // 3. Due date (earliest first, empty last)
+  // Due date (earliest first)
   const da = a.dueDate || "9999-99-99";
   const db = b.dueDate || "9999-99-99";
   if (da !== db) return da.localeCompare(db);
 
-  // 4. Created date (newest first)
+  // Created date (newest first)
   return (b.createdAt || 0) - (a.createdAt || 0);
 });
+
 
 
 
@@ -4061,30 +4190,36 @@ actions = actions.filter(a => !archivedProjectIds.has(a.projectId));
 
     const sortMode = actionSort2?.value || "dueAsc";
     filtered.sort((a, b) => {
-  // 1. Priority
+  // 🔑 Completed items always last
+  const aDone = a.status === "Completed";
+  const bDone = b.status === "Completed";
+  if (aDone !== bDone) return aDone ? 1 : -1;
+
+  // Priority
   const prio =
     prioRank(b.priority || "Medium") -
     prioRank(a.priority || "Medium");
   if (prio !== 0) return prio;
 
-  // 2. Status
+  // Status (Open > In Progress)
   const statusRank = s =>
-    s === "In Progress" ? 3 :
-    s === "Open" ? 2 : 1;
+    s === "In Progress" ? 2 :
+    s === "Open" ? 1 : 0;
 
   const status =
     statusRank(b.status || "Open") -
     statusRank(a.status || "Open");
   if (status !== 0) return status;
 
-  // 3. Due date (earliest first, empty last)
+  // Due date (earliest first)
   const da = a.dueDate || "9999-99-99";
   const db = b.dueDate || "9999-99-99";
   if (da !== db) return da.localeCompare(db);
 
-  // 4. Created date (newest first)
+  // Created date (newest first)
   return (b.createdAt || 0) - (a.createdAt || 0);
 });
+
 
 
 
@@ -4948,10 +5083,16 @@ requestAnimationFrame(() => {
   allLi.onclick = () => {
   notesMode = "all";
   selectedCollectionId = null;
+
+  // 🔑 RESET collection filter
+  filterState.notesCollections.clear();
+  filterState.notesCollections.add("__ALL__");
+
   showNotesIndex();
   refreshNotes();
   refreshCollections();
 };
+
 
   collectionList.appendChild(allLi);
 
@@ -4963,12 +5104,19 @@ requestAnimationFrame(() => {
 li.textContent = c.name + (c.archived ? " (archived)" : "");
     li.className = selectedCollectionId === c.id ? "active" : "";
     li.onclick = () => {
-  notesMode = "collection";
+  // Sidebar selection is the PRIMARY filter
   selectedCollectionId = c.id;
+  notesMode = "collection";
+
+  // 🔑 OVERRIDE collection multi-filter
+  filterState.notesCollections.clear();
+  filterState.notesCollections.add(c.id);
+
   showNotesIndex();
   refreshNotes();
   refreshCollections();
 };
+
 
 const openCollectionEditor = async () => {
   editingCollectionId = c.id;
@@ -5028,7 +5176,7 @@ li.addEventListener("touchend", (e) => {
 
 
 
-
+refreshCollectionsMobile();
     collectionList.appendChild(li);
   }
 }
@@ -5135,6 +5283,16 @@ async function populateNotesProjectFilter() {
   let filteredNotes = notes;
 
   // --------------------------------------------------
+// PRIMARY collection filter: sidebar selection
+// --------------------------------------------------
+if (notesMode === "collection" && selectedCollectionId) {
+  filteredNotes = filteredNotes.filter(
+    n => n.collectionId === selectedCollectionId
+  );
+}
+
+
+  // --------------------------------------------------
   // Text search filter
   // --------------------------------------------------
   if (notesSearchText) {
@@ -5150,14 +5308,6 @@ const projSet = filterState.notesProjects;
 if (!projSet.has("__ALL__")) {
   filteredNotes = filteredNotes.filter(n =>
     n.projectId && projSet.has(n.projectId)
-  );
-}
-
-// ---------- Collection filter ----------
-const colSet = filterState.notesCollections;
-if (!colSet.has("__ALL__")) {
-  filteredNotes = filteredNotes.filter(n =>
-    n.collectionId && colSet.has(n.collectionId)
   );
 }
 
