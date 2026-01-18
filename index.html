@@ -468,43 +468,73 @@
     <!-- NOTES -->
     <section id="view-notes" class="view hidden">
       <div id="notesIndexCard" class="card">
-        <div class="notesIndexHeader">
-  <button id="btnNewNote" class="btn btn--primary">New note</button>
-<input
-  id="notesSearchInput"
-  class="input"
-  placeholder="Search notes…"
-/>
 
-  <div class="filterMulti">
-  <button id="notesProjectFilterBtn" class="filterBtn" type="button">Projects</button>
-  <div id="notesProjectFilterPanel" class="filterPanel hidden" tabindex="-1"></div>
-</div>
+  <!-- Desktop / Mobile header -->
+  <div class="notesHeader">
+    <div class="notesHeader__left">
+      <h2 class="notesTitle">Notes</h2>
+    </div>
 
-<div class="filterMulti">
-  <button id="notesCollectionFilterBtn" class="filterBtn" type="button">Collections</button>
-  <div id="notesCollectionFilterPanel" class="filterPanel hidden" tabindex="-1"></div>
-</div>
-
-</div>
-
-        <div class="notesLayout">
-
-  <div class="notesCollections">
-    <ul id="collectionList"></ul>
-<button id="btnAddCollection" class="btn btn--ghost">+ Collection</button>
-<button id="btnToggleArchivedCollections" class="btn btn--ghost">
-  Show archived collections
-</button>
+    <div class="notesHeader__right">
+      <button id="btnNotesOpenCollections" class="btn btn--ghost notesOnlyMobile">
+        Collections
+      </button>
+      <button id="btnNewNote" class="btn btn--primary">
+        New
+      </button>
+    </div>
   </div>
 
-  <div class="notesMain">
-    <ul id="notesList"></ul>
+  <!-- Search (always visible, but separated) -->
+  <div class="notesSearchRow">
+    <input
+      id="notesSearchInput"
+      class="input"
+      placeholder="Search notes…"
+    />
   </div>
 
+  <!-- Main layout -->
+  <div class="notesShell">
+
+    <!-- Desktop collections sidebar -->
+    <aside class="notesSidebar notesOnlyDesktop">
+      <ul id="collectionList" class="notesCollectionsList"></ul>
+
+      <div class="notesSidebarActions">
+        <button id="btnAddCollection" class="btn btn--ghost">+ Collection</button>
+        <button id="btnToggleArchivedCollections" class="btn btn--ghost">
+          Show archived collections
+        </button>
+      </div>
+    </aside>
+
+    <!-- Notes list -->
+    <section class="notesContent">
+      <ul id="notesList" class="list notesList"></ul>
+    </section>
+
+  </div>
 </div>
 
-        <ul id="notesList" class="list"></ul>
+<!-- Mobile collections drawer -->
+<div id="notesCollectionsDrawer" class="notesDrawer hidden">
+  <div class="notesDrawerBackdrop" id="notesCollectionsBackdrop"></div>
+
+  <div class="notesDrawerPanel">
+    <div class="notesDrawerHeader">
+      <strong>Collections</strong>
+      <button id="btnCloseNotesDrawer" class="iconBtn">×</button>
+    </div>
+
+    <ul id="collectionListMobile" class="notesCollectionsList"></ul>
+
+    <div class="notesDrawerActions">
+      <button id="btnAddCollectionMobile" class="btn btn--ghost">+ Collection</button>
+    </div>
+  </div>
+</div>
+
       </div>
 
       <div id="notesDetailCard" class="card hidden">
@@ -577,9 +607,11 @@
     <div id="themeBackdrop" class="backdrop"></div>
     <div class="modalCard">
       <div class="modalHeader">
-        <div class="modalTitle">Theme & font</div>
-        <button id="btnCloseTheme" class="iconBtn" type="button">×</button>
-      </div>
+  <div class="modalTitle">Theme & font</div>
+  <button id="btnCloseTheme" class="iconBtn" type="button">×</button>
+</div>
+
+
 
       <div class="field">
         <label>Theme</label>
@@ -926,7 +958,7 @@
 <div id="binModal" class="modal hidden">
   <div id="binBackdrop" class="backdrop"></div>
 
-  <div class="modalCard">
+    <div class="modalCard">
     <div class="modalHeader">
       <div class="modalTitle">Recently deleted</div>
       <button id="btnCloseBin" class="iconBtn" type="button">×</button>
@@ -936,15 +968,19 @@
       Items are permanently deleted after 7 days.
     </div>
 
-    <div class="grid" style="grid-template-columns: 140px 1fr 100px; gap:8px">
-      <div class="small"><strong>Type</strong></div>
-      <div class="small"><strong>Record</strong></div>
-      <div class="small"></div>
+    <!-- 🔑 NEW SCROLL CONTAINER -->
+    <div class="modalBody">
+      <div class="grid">
+        <div class="small"><strong>Type</strong></div>
+        <div class="small"><strong>Record</strong></div>
+        <div class="small"></div>
 
-      <div id="binList" style="grid-column:1 / -1"></div>
+        <div id="binList"></div>
+      </div>
     </div>
   </div>
-</div>
+
+
 
 
 
