@@ -440,9 +440,11 @@ const noteProjectSelect = $("noteProjectSelect");
   const collectionList = $("collectionList");
 const btnAddCollection = $("btnAddCollection");
 
-
-
-
+// Notes desktop filters
+const notesProjectFilterBtn = $("notesProjectFilterBtn");
+const notesProjectFilterPanel = $("notesProjectFilterPanel");
+const notesCollectionFilterBtn = $("notesCollectionFilterBtn");
+const notesCollectionFilterPanel = $("notesCollectionFilterPanel");
 
 
 // Notes collections drawer (mobile)
@@ -5304,8 +5306,8 @@ async function populateNotesProjectFilter() {
 
 
   async function refreshNotes() {
-if (window.matchMedia("(min-width: 601px)").matches) {
-}
+
+    
 
 
   if (notesSearchInput) {
