@@ -497,16 +497,26 @@ body{
 
 .menu,.modal{position:fixed;inset:0;z-index:50}
 .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px)}
-.menuCard,.modalCard{
-  position:relative;z-index:1;
-  width:min(520px, calc(100% - 24px));
-  margin:70px auto 0;
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:18px;
-  box-shadow:var(--shadow);
-  padding:14px;
+.menuCard,
+.modalCard{
+  position: relative;
+  z-index: 1;
+
+  width: min(520px, calc(100% - 24px));
+  margin: 70px auto 0;
+
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 14px;
+
+  /* 🔑 REQUIRED FOR SCROLLING CONTENT */
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
 }
+
 .modalHeader{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .modalTitle{font-weight:800}
 .menuTitle{font-weight:800;margin-bottom:10px}
@@ -515,6 +525,9 @@ body{
   display:flex;align-items:center;justify-content:space-between;
   padding:10px;border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.04)
 }
+
+
+
 
 .field{margin:10px 0}
 .field label{display:block;margin-bottom:6px;font-size:12px;color:var(--muted)}
@@ -535,7 +548,13 @@ body{
 .paneHeader{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
 .paneTitle{font-weight:800}
 
-.grid{display:grid;gap:6px}
+.grid{
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-height: 0; /* 🔑 critical for flex + overflow */
+}
+
 .grid--7{grid-template-columns:220px repeat(7, minmax(60px, 1fr))}
 .grid--month{grid-template-columns:repeat(7, minmax(42px, 1fr))}
 .cell{
@@ -607,18 +626,9 @@ body{
   .select{min-width:150px}
 }
 
-.notesLayout {
-  display: flex;
-  gap: 16px;
-}
 
 
-.notesIndexHeader {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 12px;
-}
+
 
 .noteMetaRight {
   text-align: right;
@@ -909,16 +919,7 @@ option {
 
 .menu,.modal{position:fixed;inset:0;z-index:50}
 .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px)}
-.menuCard,.modalCard{
-  position:relative;z-index:1;
-  width:min(520px, calc(100% - 24px));
-  margin:70px auto 0;
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:18px;
-  box-shadow:var(--shadow);
-  padding:14px;
-}
+
 .modalHeader{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .modalTitle{font-weight:800}
 .menuTitle{font-weight:800;margin-bottom:10px}
@@ -947,16 +948,16 @@ option {
 .paneHeader{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
 .paneTitle{font-weight:800}
 
-.grid{display:grid;gap:6px}
-.grid--7{grid-template-columns:220px repeat(7, minmax(60px, 1fr))}
-.grid--month{grid-template-columns:repeat(7, minmax(42px, 1fr))}
-.cell{
-  border:1px solid var(--border);
-  background:rgba(255,255,255,.04);
-  border-radius:12px;
-  padding:8px;
-  min-height:44px;
+/* grid: preserve shrinkability inside flexed modal content */
+.grid{
+  display: grid;
+  gap: 6px;
+  /* when grid is used inside a flex column (modalCard),
+     allow it to shrink so internal children (modalBody / #binList) may scroll */
+  flex: 1;
+  min-height: 0;
 }
+
 .cell.head{background:rgba(255,255,255,.08);font-weight:800}
 .cell.off{opacity:.45}
 .cell.done{background:rgba(34,197,94,.22);border-color:rgba(34,197,94,.32)}
@@ -1024,11 +1025,7 @@ option {
   gap: 16px;
 }
 
-.notesCollections {
-  width: 180px;
-  border-right: 1px solid #e5e7eb;
-  padding-right: 8px;
-}
+
 
 .notesCollections ul {
   list-style: none;
@@ -1166,6 +1163,43 @@ option {
   font-size: 12px;
   white-space: nowrap;
 }
+
+/* =========================
+   Trash modal scrolling
+   ========================= */
+
+   /* Ensure confirm dialog is always on top of other modals */
+#confirmModal {
+  z-index: 100; /* higher than generic .modal (50) */
+}
+
+/* also ensure the confirm modal card sits above its backdrop */
+#confirmModal .modalCard {
+  position: relative;
+  z-index: 101;
+}
+
+
+.modalBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Ensure grid does NOT capture scroll */
+.modalBody > .grid {
+  min-height: 0;
+}
+
+
+#binList {
+  grid-column: 1 / -1;
+}
+
+
+
 
 /* === Fix select / option contrast in modals === */
 
@@ -1322,32 +1356,6 @@ option {
    Notes collections (final)
    ========================= */
 
-.notesCollections {
-  width: 180px;
-  padding-right: 8px;
-  border-right: 1px solid var(--border);
-}
-
-.notesCollections ul {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 8px 0;
-}
-
-.notesCollections li {
-  padding: 8px 10px;
-  margin-bottom: 6px;
-  border-radius: 12px;
-  cursor: pointer;
-  color: var(--text);
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--border);
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.notesCollections li:hover {
-  background: rgba(255,255,255,0.08);
-}
 
 .notesCollections li.active {
   background: linear-gradient(90deg, var(--primary), var(--primary2));
@@ -1378,6 +1386,167 @@ option {
   color: #fff;
 }
 
+
+/* =========================
+   Trash modal scrolling
+   ========================= */
+
+/* Scroll container inside modal */
+.modalBody {
+  flex: 1;
+  min-height: 0;                 /* 🔑 REQUIRED */
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent grid from blocking scroll */
+.modalBody > .grid {
+  min-height: 0;
+}
+
+/* Make binList span full grid width */
+#binList {
+  grid-column: 1 / -1;
+}
+
+
+/* =========================
+   Confirm modal layering
+   ========================= */
+
+#confirmModal {
+  z-index: 100;
+}
+
+#confirmModal .modalCard {
+  position: relative;
+  z-index: 101;
+}
+
+
+/* =========================
+   Notes — Layout
+========================= */
+
+.notesHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.notesTitle {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.notesSearchRow {
+  margin-bottom: 12px;
+}
+
+.notesShell {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 16px;
+}
+
+/* Sidebar */
+.notesSidebar {
+  border-right: 1px solid var(--border);
+  padding-right: 12px;
+}
+
+.notesCollectionsList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notesCollectionsList li {
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border-radius: 12px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.04);
+}
+
+.notesCollectionsList li.active {
+  background: linear-gradient(90deg, var(--primary), var(--primary2));
+  color: #fff;
+  font-weight: 600;
+}
+
+.notesSidebarActions {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Notes list */
+.notesList li {
+  cursor: pointer;
+}
+
+/* =========================
+   Mobile behaviour
+========================= */
+
+.notesOnlyDesktop { display: block; }
+.notesOnlyMobile { display: none; }
+
+@media (max-width: 600px) {
+  .notesShell {
+    grid-template-columns: 1fr;
+  }
+
+  .notesOnlyDesktop { display: none; }
+  .notesOnlyMobile { display: inline-flex; }
+}
+
+/* =========================
+   Collections drawer (mobile)
+========================= */
+
+.notesDrawer {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.notesDrawerBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+}
+
+.notesDrawerPanel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--card);
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  padding: 14px;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.notesDrawerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.notesDrawerActions {
+  margin-top: 12px;
+}
 
 
 
