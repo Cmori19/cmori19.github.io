@@ -2398,20 +2398,21 @@ if (expGoals.checked) {
     if (tab === "habits") { refreshHabits(); refreshHabitTrack(); }
     if (tab === "meals") refreshMeals();
     if (tab === "notes") {
+  // Ensure Notes DOM is rendered before building filters
+  await new Promise(requestAnimationFrame);
+
   notesMode = "all";
   selectedCollectionId = null;
 
   filterState.notesCollections.clear();
   filterState.notesCollections.add("__ALL__");
 
-  // 🔑 build filters ONCE for desktop
-  if (window.matchMedia("(min-width: 601px)").matches) {
-    await buildNotesFilters();
-  }
+  await buildNotesFilters();
 
   refreshCollections();
   refreshNotes();
 }
+
 
 
     if (tab === "goals") {
