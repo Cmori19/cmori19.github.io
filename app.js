@@ -1348,14 +1348,19 @@ if (window.Sync && typeof window.Sync.discardUnauthenticatedLocalData === "funct
       // IMPORTANT: DO NOT delete local data on login
       // Only pull data from Firebase and merge it
       if (window.Sync && typeof window.Sync.initialSync === "function") {
-        try {
-          await window.Sync.initialSync();
-        } catch (e) {
-          console.warn("Initial sync failed:", e);
-        }
-      }
+  try {
+    // 1) Perform the background/delta sync as before
+    await window.Sync.initialSync();
 
-      // Run daily to-do rollover AFTER sync (so cloud does not overwrite it)
+    // 🔑 Force dashboard recalculation after cloud sync
+await refreshDashboard();
+
+  } catch (e) {
+    console.warn("Initial sync failed:", e);
+  }
+}
+
+// Run daily to-do rollover AFTER sync (so cloud does not overwrite it)
 const today = todayStrISO();
 const lastRollover = await window.DB.getSetting("ui.lastTodoRollover", null);
 
@@ -1366,6 +1371,23 @@ if (
   await window.DB.rolloverTodosToToday(today);
   await window.DB.setSetting("ui.lastTodoRollover", today);
 }
+
+// ---- NEW: reinitialise dashboard state and refresh dependent views
+// Reset the dashboard period (this calls refreshDashboard() internally)
+if (typeof setDashboardPeriod === "function") {
+  setDashboardPeriod("Week");
+} else if (typeof refreshDashboard === "function") {
+  // fallback: ensure dashboard is refreshed even if setDashboardPeriod isn't available
+  await refreshDashboard();
+}
+
+// Also refresh the lists that feed the dashboard so indices and counts are current
+if (typeof refreshTodoIndex === "function") await refreshTodoIndex();
+if (typeof refreshTodoDetail === "function") await refreshTodoDetail(); // if a date is open
+if (typeof refreshJournalIndex === "function") await refreshJournalIndex();
+if (typeof refreshHabits === "function") await refreshHabits();
+if (typeof refreshProjectsAndActions === "function") await refreshProjectsAndActions();
+
 
     } else {
   // User just logged out → wipe all local data immediately
@@ -2149,6 +2171,8 @@ btnAddGoalPeriod?.addEventListener("touchstart", onAddGoal, { passive: false });
 
   // Expose for tab switching
   window.refreshGoals = refreshGoals;
+  window.refreshDashboard = refreshDashboard;
+
 
 
   /* ---------------------------------------------------------
@@ -2728,9 +2752,16 @@ function journalCompletionForDates(dates) {
     if (!entry) continue;
 
     const hasText =
-      (entry.gratitude && entry.gratitude.trim().length > 0) ||
-      (entry.objectives && entry.objectives.trim().length > 0) ||
-      (entry.reflections && entry.reflections.trim().length > 0);
+  (typeof entry.gratitude === "string" && entry.gratitude.trim().length > 0) ||
+  (typeof entry.objectives === "string" && entry.objectives.trim().length > 0) ||
+  (
+    entry.reflections &&
+    typeof entry.reflections === "object" &&
+    Object.values(entry.reflections).some(
+      v => typeof v === "string" && v.trim().length > 0
+    )
+  );
+
 
     if (hasText) completedDays++;
   }
