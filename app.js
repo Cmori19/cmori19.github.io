@@ -649,6 +649,19 @@ let lastCollectionsCache = [];
 notesCollections: new Set(["__ALL__"])
   };
 
+  // --------------------------------------------------
+// Ensure IndexedDB is initialised before use
+// --------------------------------------------------
+async function ensureDbReady() {
+  if (!window.DB || typeof window.DB.init !== "function") return;
+
+  if (window.DB._ready) return;
+
+  await window.DB.init();
+  window.DB._ready = true;
+}
+
+
   /* ---------------------------------------------------------
      Utilities
   --------------------------------------------------------- */
@@ -1288,7 +1301,9 @@ function isTouchDevice() {
   await window.fbAuth.signOut();
 
   // 2. Immediately clear all local data
-  await window.DB.importAll({}, { overwrite: true });
+  await ensureDbReady();
+await window.DB.importAll({}, { overwrite: true });
+
 
   // 3. Clear sync timestamps
   await window.DB.setSetting("sync.lastPullAt", 0);
@@ -1358,7 +1373,8 @@ if (
   setAuthStatus("Not signed in.");
 
   // 1. Clear all local IndexedDB data
-  await window.DB.importAll({}, { overwrite: true });
+await ensureDbReady();
+await window.DB.importAll({}, { overwrite: true });
 
   // 2. Clear sync timestamps
   await window.DB.setSetting("sync.lastPullAt", 0);
@@ -5731,6 +5747,7 @@ try {
     }
 
     await window.DB.init();
+    window.DB._ready = true;
     
 
     initTabs();
