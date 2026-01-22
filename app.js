@@ -2394,7 +2394,6 @@ if (expGoals.checked) {
   }
 
   refreshCollections();
-  refreshNotesProjectFilter();
   refreshNotes();
 }
 
@@ -5164,25 +5163,7 @@ requestAnimationFrame(() => {
     notesDetailCard?.classList.remove("hidden");
   }
 
-  async function refreshNotesProjectFilter() {
-  if (!notesProjectFilter) return;
-
-  const projects = (await window.DB.getAll(window.DB.STORES.projects))
-    .filter(p => !p._deleted && !p.archived)
-    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-
-  notesProjectFilter.innerHTML = `<option value="">All projects</option>`;
-
-  for (const p of projects) {
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    opt.textContent = p.name;
-    notesProjectFilter.appendChild(opt);
-  }
-
-  notesProjectFilter.value = selectedNotesProjectId || "";
-}
-
+  
 
   async function refreshCollections() {
   const allCollections = (await window.DB.getAll(window.DB.STORES.collections))
@@ -5794,7 +5775,6 @@ await maybeRunDailyTodoRollover();
 
     setTab("dashboard");
     await refreshCollections();
-    await refreshNotesProjectFilter();
 
   }
 
