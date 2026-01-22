@@ -857,6 +857,7 @@ async function deleteGoal(id) {
 // Permanent purge of soft-deleted records (Trash retention)
 // ==========================================================
 async function purgeDeletedOlderThan(cutoffTs) {
+  if (!db) return;
   for (const store of Object.values(STORES)) {
     const all = await getAll(store);
 
