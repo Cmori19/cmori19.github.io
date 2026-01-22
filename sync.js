@@ -81,9 +81,8 @@
     let newestSeen = lastPull;
 
     for (const store of STORE_LIST) {
-      const col = db
-        .collection(storePath(user.uid, store))
-        .where("updatedAt", ">", lastPull);
+      const col = db.collection(storePath(user.uid, store));
+
 
       const snap = await col.get();
       if (snap.empty) continue;
@@ -91,6 +90,12 @@
       for (const doc of snap.docs) {
         const data = doc.data();
         if (!data) continue;
+
+        // 🔑 SAFETY: ensure updatedAt always exists
+if (!data.updatedAt) {
+  data.updatedAt = Date.now();
+}
+
 
         const id = getId(store, data);
         if (!id) continue;
@@ -104,6 +109,12 @@
       await window.DB.setSetting("sync.lastPullAt", newestSeen);
       updateSyncStamp(newestSeen);
     }
+
+    // 🔑 Force dashboard to recalculate after sync writes
+if (typeof window.refreshDashboard === "function") {
+  window.refreshDashboard();
+}
+
   }
 
   /* -------------------------------------------------------
