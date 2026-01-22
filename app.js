@@ -1809,21 +1809,32 @@ for (const tag of REFLECTION_TAGS) {
     ta.className = "textarea autosize";
     ta.rows = 6;
 
-    ta.value = mergedHealthTags
-      .map(t => goal.content?.[t]?.trim())
-      .filter(Boolean)
-      .join("\n\n");
+    const vals = mergedHealthTags
+  .map(t => (goal.content?.[t] || "").trim())
+  .filter(Boolean);
+
+// If the three fields all contain the same text, show it once
+const uniq = Array.from(new Set(vals));
+
+ta.value = uniq.join("\n\n");
+
 
     ta.addEventListener("input", () => {
-      const val = ta.value || "";
-      for (const t of mergedHealthTags) {
-        goal.content[t] = val;
-      }
-      debounce(`goal_autosave_${goal.id}`, 250, async () => {
-        await saveGoalDraft(goal);
-      });
-      autosizeTextarea(ta);
-    });
+  const val = ta.value || "";
+
+  // Store merged content in ONE place only
+  goal.content.health = val;
+
+  // Clear the others so we never display duplicates again
+  goal.content.nutrition = "";
+  goal.content.sleep = "";
+
+  debounce(`goal_autosave_${goal.id}`, 250, async () => {
+    await saveGoalDraft(goal);
+  });
+  autosizeTextarea(ta);
+});
+
 
     field.appendChild(ta);
     goalsDetailWrap.appendChild(field);
