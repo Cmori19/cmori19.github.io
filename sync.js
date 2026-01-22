@@ -15,6 +15,13 @@
     "settings"
   ];
 
+  let IS_PULLING_FROM_CLOUD = false;
+
+window.__syncInternal = {
+  isPulling: () => IS_PULLING_FROM_CLOUD
+};
+
+
   function isOnline() {
     return navigator.onLine;
   }
@@ -69,6 +76,7 @@
   ------------------------------------------------------- */
 
   async function pullDeltas() {
+      IS_PULLING_FROM_CLOUD = true;
     if (!isOnline()) return;
     if (!getUser()) {
   console.warn("[SYNC] Skipped pull: user not authenticated");
@@ -94,6 +102,7 @@
         // 🔑 SAFETY: ensure updatedAt always exists
 if (!data.updatedAt) {
   data.updatedAt = Date.now();
+    IS_PULLING_FROM_CLOUD = false;
 }
 
 
@@ -168,6 +177,7 @@ if (typeof window.refreshDashboard === "function") {
 
 
 async function fullPullAllFromCloud() {
+    IS_PULLING_FROM_CLOUD = true;
   if (!navigator.onLine) return;
 
   const user = window.fbAuth?.currentUser;
@@ -202,6 +212,7 @@ async function fullPullAllFromCloud() {
   if (newestSeen > 0) {
     await window.DB.setSetting("sync.lastPullAt", newestSeen);
   }
+    IS_PULLING_FROM_CLOUD = false;
 }
 
 
