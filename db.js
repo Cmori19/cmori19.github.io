@@ -125,13 +125,15 @@ if (!value.updatedAt) {
   try {
     // IMPORTANT: never attempt Firebase sync when logged out
     if (
-      window.fbAuth &&
-      window.fbAuth.currentUser &&
-      window.Sync &&
-      typeof window.Sync.pushItem === "function"
-    ) {
-      await window.Sync.pushItem(store, value);
-    }
+  window.fbAuth &&
+  window.fbAuth.currentUser &&
+  window.Sync &&
+  typeof window.Sync.pushItem === "function" &&
+  !(window.__syncInternal && window.__syncInternal.isPulling())
+) {
+  await window.Sync.pushItem(store, value);
+}
+
   } catch (e) {
     console.warn("Sync push failed:", e);
   }
