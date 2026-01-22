@@ -516,8 +516,40 @@
     <section class="notesContent">
 
   <!-- Desktop filters (content column only) -->
-  <div class="filterRow notesOnlyDesktop">
-     </div>
+<div class="filterRow notesOnlyDesktop">
+
+  <div class="filterMulti">
+    <button
+      id="notesProjectFilterBtn"
+      class="filterBtn"
+      type="button"
+    >
+      Projects
+    </button>
+    <div
+      id="notesProjectFilterPanel"
+      class="filterPanel hidden"
+      tabindex="-1"
+    ></div>
+  </div>
+
+  <div class="filterMulti">
+    <button
+      id="notesCollectionFilterBtn"
+      class="filterBtn"
+      type="button"
+    >
+      Collections
+    </button>
+    <div
+      id="notesCollectionFilterPanel"
+      class="filterPanel hidden"
+      tabindex="-1"
+    ></div>
+  </div>
+
+</div>
+
 
   <ul id="notesList" class="list notesList"></ul>
 </section>
