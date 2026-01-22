@@ -1960,19 +1960,22 @@ if (goal.type === "annual" || goal.type === "monthly") {
   }
 
   async function ensureLongTermGoal() {
-    const goals = await getAllGoals();
-    let g = goals.find(x => x.type === "long_term");
-    if (!g) {
-      g = await window.DB.upsertGoal({
-        id: "long_term",
-        type: "long_term",
-        period: null,
-        content: {}
-      });
-      try { await window.Sync?.pushItem?.("goals", g); } catch { /* ignore */ }
-    }
-    return g;
+  const goals = await getAllGoals();
+  let g = goals.find(x => x.type === "long_term");
+
+  if (!g) {
+    // 🔑 Create locally ONLY — do NOT sync empty goal
+    g = await window.DB.upsertGoal({
+      id: "long_term",
+      type: "long_term",
+      period: null,
+      content: {}
+    });
   }
+
+  return g;
+}
+
 
   async function addAnnualGoal() {
     const goals = await getAllGoals();
