@@ -110,6 +110,12 @@
   }
 
   function put(store, value) {
+
+    // 🔒 Ensure every record has updatedAt
+if (!value.updatedAt) {
+  value.updatedAt = Date.now();
+}
+
   return new Promise((resolve, reject) => {
     const t = tx(store, "readwrite");
     const s = t.objectStore(store);
