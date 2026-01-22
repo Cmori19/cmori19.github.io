@@ -1823,6 +1823,80 @@ for (const tag of REFLECTION_TAGS) {
   autosizeTextarea(ta);
 }
 
+// ==================================================
+// Reflections (Annual / Monthly goals only)
+// ==================================================
+
+if (goal.type === "annual" || goal.type === "monthly") {
+  const divider = document.createElement("hr");
+  divider.style.margin = "24px 0";
+  goalsDetailWrap.appendChild(divider);
+
+  const header = document.createElement("div");
+  header.className = "cardHeader";
+  header.style.marginBottom = "8px";
+
+  const title = document.createElement("div");
+  title.className = "cardTitle";
+  title.textContent = "Reflections";
+
+  const toggleBtn = document.createElement("button");
+  toggleBtn.className = "btn btn--ghost";
+  toggleBtn.type = "button";
+  toggleBtn.textContent = "Show reflections";
+
+  header.appendChild(title);
+  header.appendChild(toggleBtn);
+  goalsDetailWrap.appendChild(header);
+
+  const wrap = document.createElement("div");
+  wrap.className = "hidden";
+
+  const reflection = goal.reflection || (goal.reflection = {});
+
+  const makeField = (labelText, key) => {
+    const field = document.createElement("div");
+    field.className = "field";
+
+    const label = document.createElement("label");
+    label.textContent = labelText;
+    field.appendChild(label);
+
+    const ta = document.createElement("textarea");
+    ta.className = "textarea autosize";
+    ta.rows = 4;
+    ta.value = reflection[key] || "";
+
+    ta.addEventListener("input", () => {
+      reflection[key] = ta.value || "";
+      debounce(`goal_reflection_${goal.id}`, 300, async () => {
+        await window.DB.upsertGoal({
+          id: goal.id,
+          reflection
+        });
+      });
+      autosizeTextarea(ta);
+    });
+
+    field.appendChild(ta);
+    wrap.appendChild(field);
+    autosizeTextarea(ta);
+  };
+
+  makeField("What went well", "wentWell");
+  makeField("What didn’t go well", "didNotGoWell");
+  makeField("Lessons / changes going forward", "lessons");
+
+  goalsDetailWrap.appendChild(wrap);
+
+  toggleBtn.addEventListener("click", () => {
+    const hidden = wrap.classList.toggle("hidden");
+    toggleBtn.textContent = hidden
+      ? "Show reflections"
+      : "Hide reflections";
+  });
+}
+
 
   }
 
@@ -2561,26 +2635,7 @@ bindDashboardPeriod(dashPeriodYear, "Year");
 
     
 
-    function journalCompletionForDates(dates) {
-  let completedDays = 0;
-
-  for (const d of dates) {
-    const entry = journals.find(j => j.date === d);
-    if (!entry) continue;
-
-    const hasText =
-      (entry.gratitude && entry.gratitude.trim().length > 0) ||
-      (entry.objectives && entry.objectives.trim().length > 0) ||
-      (entry.reflections && entry.reflections.trim().length > 0);
-
-    if (hasText) completedDays++;
-  }
-
-  return dates.length ? completedDays / dates.length : NaN;
-}
-
-
-    // Failed on the day (rolled over)
+        // Failed on the day (rolled over)
     if (Array.isArray(t.rolloverFailures)) {
       for (const d of t.rolloverFailures) {
         if (dates.includes(d)) {
@@ -4852,9 +4907,12 @@ mealsWrap.classList.toggle("stack", mealsListHidden);
     }
   }
 
-  function findPlan(plans, dateISO, slot) {
-    return plans.find(p => p.date === dateISO && p.slot === slot && !p._deleted) || null;
-  }
+  function findPlans(plans, dateISO, slot) {
+  return plans.filter(
+    p => p.date === dateISO && p.slot === slot && !p._deleted
+  );
+}
+
 
   async function setMealPlan(dateISO, slot, mealId) {
     await window.DB.upsertMealPlan({ date: dateISO, slot, mealId });
@@ -4895,23 +4953,31 @@ mealsWrap.classList.toggle("stack", mealsListHidden);
       const cell = document.createElement("div");
       cell.className = "mealSlot";
 
-      const existing = findPlan(plans, dateISO, s);
-      const mealName = existing ? (meals.find(m => m.id === existing.mealId)?.name || "—") : "";
+      const existing = findPlans(plans, dateISO, s);
 
-      cell.innerHTML = `
+const mealNames = existing
+  .map(p => meals.find(m => m.id === p.mealId)?.name)
+  .filter(Boolean);
+
+cell.innerHTML = `
   <div class="mealSlotHead">
     ${slotLabel(s)}
     <button class="btn btn--ghost mealAddBtn" type="button">+</button>
   </div>
 
-  <div class="mealSlotBody ${mealName ? "" : "empty"}">
-    ${mealName
-      ? `<span class="mealPill">${escapeHtml(mealName)}</span>`
-      : `<span class="muted">${isTouchDevice() ? "Tap +" : "Drop here"}</span>`}
+  <div class="mealSlotBody ${mealNames.length ? "" : "empty"}">
+    ${
+      mealNames.length
+        ? mealNames
+            .map(name => `<span class="mealPill">${escapeHtml(name)}</span>`)
+            .join("")
+        : `<span class="muted">${isTouchDevice() ? "Tap +" : "Drop here"}</span>`
+    }
   </div>
 
   <button class="iconBtn" type="button" title="Clear">×</button>
 `;
+
 
 
       const body = cell.querySelector(".mealSlotBody");
@@ -5656,7 +5722,8 @@ if (!ok) return;
     noteBody.value = "";
     noteCreated.textContent = "—";
     noteUpdated.textContent = "—";
-    await refreshNotes();
+    showNotesIndex();
+await refreshNotes();
   });
 
   /* ---------------------------------------------------------
@@ -5733,4 +5800,3 @@ await maybeRunDailyTodoRollover();
 
   init();
 })();
-
