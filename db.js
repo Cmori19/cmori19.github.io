@@ -109,33 +109,42 @@
     });
   }
 
-  function put(store, value) {
+  function put(store, value, opts = {}) {
   return new Promise((resolve, reject) => {
     const t = tx(store, "readwrite");
     const s = t.objectStore(store);
     const r = s.put(value);
 
     r.onsuccess = async () => {
-  try {
-    // IMPORTANT: never attempt Firebase sync when logged out
-    if (
-      window.fbAuth &&
-      window.fbAuth.currentUser &&
-      window.Sync &&
-      typeof window.Sync.pushItem === "function"
-    ) {
-      await window.Sync.pushItem(store, value);
-    }
-  } catch (e) {
-    console.warn("Sync push failed:", e);
-  }
-  resolve(value);
-};
-
+      try {
+        // Only push to Firebase when:
+        // - user is logged in
+        // - push function exists
+        // - this write is NOT an internal sync write
+        if (
+          !opts.skipSync &&
+          window.fbAuth &&
+          window.fbAuth.currentUser &&
+          window.Sync &&
+          typeof window.Sync.pushItem === "function"
+        ) {
+          await window.Sync.pushItem(store, value);
+        }
+      } catch (e) {
+        console.warn("Sync push failed:", e);
+      }
+      resolve(value);
+    };
 
     r.onerror = () => reject(r.error);
   });
 }
+
+// Convenience helper for internal sync writes (never triggers Firestore)
+function putNoSync(store, value) {
+  return put(store, value, { skipSync: true });
+}
+
 
 
   function del(store, key) {
@@ -909,6 +918,7 @@ async function purgeDeletedOlderThan(cutoffTs) {
     getOne,
     getByIndex,
     put,
+    putNoSync,
     del,
     exportAll,
     importAll,
