@@ -15,13 +15,6 @@
     "settings"
   ];
 
-  let IS_PULLING_FROM_CLOUD = false;
-
-window.__syncInternal = {
-  isPulling: () => IS_PULLING_FROM_CLOUD
-};
-
-
   function isOnline() {
     return navigator.onLine;
   }
@@ -76,7 +69,6 @@ window.__syncInternal = {
   ------------------------------------------------------- */
 
   async function pullDeltas() {
-      IS_PULLING_FROM_CLOUD = true;
     if (!isOnline()) return;
     if (!getUser()) {
   console.warn("[SYNC] Skipped pull: user not authenticated");
@@ -89,8 +81,9 @@ window.__syncInternal = {
     let newestSeen = lastPull;
 
     for (const store of STORE_LIST) {
-      const col = db.collection(storePath(user.uid, store));
-
+      const col = db
+        .collection(storePath(user.uid, store))
+        .where("updatedAt", ">", lastPull);
 
       const snap = await col.get();
       if (snap.empty) continue;
@@ -98,13 +91,6 @@ window.__syncInternal = {
       for (const doc of snap.docs) {
         const data = doc.data();
         if (!data) continue;
-
-        // 🔑 SAFETY: ensure updatedAt always exists
-if (!data.updatedAt) {
-  data.updatedAt = Date.now();
-    IS_PULLING_FROM_CLOUD = false;
-}
-
 
         const id = getId(store, data);
         if (!id) continue;
@@ -118,12 +104,6 @@ if (!data.updatedAt) {
       await window.DB.setSetting("sync.lastPullAt", newestSeen);
       updateSyncStamp(newestSeen);
     }
-
-    // 🔑 Force dashboard to recalculate after sync writes
-if (typeof window.refreshDashboard === "function") {
-  window.refreshDashboard();
-}
-
   }
 
   /* -------------------------------------------------------
@@ -177,7 +157,6 @@ if (typeof window.refreshDashboard === "function") {
 
 
 async function fullPullAllFromCloud() {
-    IS_PULLING_FROM_CLOUD = true;
   if (!navigator.onLine) return;
 
   const user = window.fbAuth?.currentUser;
@@ -212,7 +191,6 @@ async function fullPullAllFromCloud() {
   if (newestSeen > 0) {
     await window.DB.setSetting("sync.lastPullAt", newestSeen);
   }
-    IS_PULLING_FROM_CLOUD = false;
 }
 
 
