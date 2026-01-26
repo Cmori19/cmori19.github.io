@@ -440,6 +440,11 @@ const noteProjectSelect = $("noteProjectSelect");
 const notesProjectFilter = $("notesProjectFilter");
   const collectionList = $("collectionList");
 const btnAddCollection = $("btnAddCollection");
+const notesProjectFilterBtn = $("notesProjectFilterBtn");
+const notesCollectionFilterBtn = $("notesCollectionFilterBtn");
+const notesCollectionFilterPanel = $("notesCollectionFilterPanel");
+
+
 
 
 
@@ -931,6 +936,16 @@ function isTouchDevice() {
       .replaceAll(">", "&gt;");
   }
 
+  let dbReady = null;
+
+async function ensureDbReady() {
+  if (!dbReady) {
+    dbReady = window.DB.init();
+  }
+  await dbReady;
+}
+
+
   function highlightMatch(text, query) {
   if (!query) return escapeHtml(text || "");
   const safe = escapeHtml(text || "");
@@ -1251,6 +1266,7 @@ function isTouchDevice() {
   await window.fbAuth.signOut();
 
   // 2. Immediately clear all local data
+  await ensureDbReady();
   await window.DB.importAll({}, { overwrite: true });
 
   // 3. Clear sync timestamps
@@ -1283,6 +1299,7 @@ function isTouchDevice() {
 // Remove ONLY data created while logged out (scratch data)
 // Preserve all authenticated offline data
 // --------------------------------------------------
+// 🔒 SAFE LOGIN CLEANUP (wipe logged-out test data)
 if (window.Sync && typeof window.Sync.discardUnauthenticatedLocalData === "function") {
   try {
     await window.Sync.discardUnauthenticatedLocalData(user.uid);
@@ -1291,17 +1308,33 @@ if (window.Sync && typeof window.Sync.discardUnauthenticatedLocalData === "funct
   }
 }
 
+// 🔑 BOOTSTRAP: pull ALL user data once after local wipe
+if (window.Sync && typeof window.Sync.fullPullAllFromCloud === "function") {
+  try {
+    await window.Sync.fullPullAllFromCloud();
+  } catch (e) {
+    console.warn("Full pull failed:", e);
+  }
+}
 
+// 🔁 Resume normal delta sync
+if (window.Sync && typeof window.Sync.initialSync === "function") {
+  try {
+    await window.Sync.initialSync();
+  } catch (e) {
+    console.warn("Initial sync failed:", e);
+  }
+}
 
-      // IMPORTANT: DO NOT delete local data on login
-      // Only pull data from Firebase and merge it
-      if (window.Sync && typeof window.Sync.initialSync === "function") {
-        try {
-          await window.Sync.initialSync();
-        } catch (e) {
-          console.warn("Initial sync failed:", e);
-        }
-      }
+// 🔄 Refresh UI after local DB is populated
+refreshDashboard();
+refreshTodoIndex();
+refreshJournalIndex();
+refreshProjectsAndActions();
+refreshHabits();
+refreshMeals();
+refreshNotes();
+
 
       // Run daily to-do rollover AFTER sync (so cloud does not overwrite it)
 const today = todayStrISO();
@@ -1321,6 +1354,7 @@ if (
   setAuthStatus("Not signed in.");
 
   // 1. Clear all local IndexedDB data
+  await ensureDbReady();
   await window.DB.importAll({}, { overwrite: true });
 
   // 2. Clear sync timestamps
@@ -2511,26 +2545,7 @@ bindDashboardPeriod(dashPeriodYear, "Year");
 
     
 
-    function journalCompletionForDates(dates) {
-  let completedDays = 0;
-
-  for (const d of dates) {
-    const entry = journals.find(j => j.date === d);
-    if (!entry) continue;
-
-    const hasText =
-      (entry.gratitude && entry.gratitude.trim().length > 0) ||
-      (entry.objectives && entry.objectives.trim().length > 0) ||
-      (entry.reflections && entry.reflections.trim().length > 0);
-
-    if (hasText) completedDays++;
-  }
-
-  return dates.length ? completedDays / dates.length : NaN;
-}
-
-
-    // Failed on the day (rolled over)
+        // Failed on the day (rolled over)
     if (Array.isArray(t.rolloverFailures)) {
       for (const d of t.rolloverFailures) {
         if (dates.includes(d)) {
@@ -2574,6 +2589,33 @@ bindDashboardPeriod(dashPeriodYear, "Year");
   mJournalRate.textContent = fmtPct(journalCompletionForDates(dates));
 }
 
+function journalCompletionForDates(dates) {
+  let completedDays = 0;
+
+  for (const d of dates) {
+    const entry = journals.find(j => j.date === d);
+    if (!entry) continue;
+
+    const hasText =
+      (entry.gratitude && entry.gratitude.trim().length > 0) ||
+      (entry.objectives && entry.objectives.trim().length > 0) ||
+      (
+  entry.reflections &&
+  typeof entry.reflections === "object" &&
+  Object.values(entry.reflections).some(
+    v => typeof v === "string" && v.trim().length > 0
+  )
+)
+
+
+    if (hasText) completedDays++;
+  }
+
+  return dates.length ? completedDays / dates.length : NaN;
+}
+
+
+
 function avgForField(field) {
   const values = journals
     .filter(j => dates.includes(j.date))
@@ -2591,31 +2633,12 @@ if (mJournalPeriodLabel) {
 }
 
 
-    if (mJournalRate) {
-  mJournalRate.textContent = fmtPct(journalCompletionForDates(dates));
-}
-
+    
 if (mJournalPeriodLabel) {
   mJournalPeriodLabel.textContent = periodLabel;
 }
 
-function journalCompletionForDates(dates) {
-  let completedDays = 0;
 
-  for (const d of dates) {
-    const entry = journals.find(j => j.date === d);
-    if (!entry) continue;
-
-    const hasText =
-      (entry.gratitude && entry.gratitude.trim().length > 0) ||
-      (entry.objectives && entry.objectives.trim().length > 0) ||
-      (entry.reflections && entry.reflections.trim().length > 0);
-
-    if (hasText) completedDays++;
-  }
-
-  return dates.length ? completedDays / dates.length : NaN;
-}
 
 
 
@@ -2640,6 +2663,10 @@ function journalCompletionForDates(dates) {
 
     if (mHabitWeek) mHabitWeek.textContent = fmtPct(periodStatsHabits(habitStart));
     if (mHabitPeriodLabel) mHabitPeriodLabel.textContent = habitLabel;
+
+    // 🔑 Force repaint on period change
+mHabitWeek.offsetHeight;
+
 
     const moodPct = avgForField("mood") / 10;
 const energyPct = avgForField("energy") / 10;
@@ -3263,14 +3290,16 @@ journalStress.value = rec?.stress ?? "";
   }
 
   const payload = {
-    date: currentJournalDate,
-    gratitude,
-    objectives,
-    mood: journalMood.value ? Number(journalMood.value) : null,
-    energy: journalEnergy.value ? Number(journalEnergy.value) : null,
-    stress: journalStress.value ? Number(journalStress.value) : null,
-    reflections: cleanedReflections
-  };
+  date: currentJournalDate,
+  gratitude,
+  objectives,
+  mood: journalMood.value ? Number(journalMood.value) : null,
+  energy: journalEnergy.value ? Number(journalEnergy.value) : null,
+  stress: journalStress.value ? Number(journalStress.value) : null,
+  reflections: cleanedReflections,
+  updatedAt: Date.now()   // 🔑 CRITICAL
+};
+
 
   await window.DB.upsertJournal(payload);
 }
@@ -4803,13 +4832,51 @@ mealsWrap.classList.toggle("stack", mealsListHidden);
   }
 
   function findPlan(plans, dateISO, slot) {
-    return plans.find(p => p.date === dateISO && p.slot === slot && !p._deleted) || null;
+  const p = plans.find(
+    x => x.date === dateISO && x.slot === slot && !x._deleted
+  );
+  if (!p) return null;
+
+  // 🔑 Backward compatibility: old single-meal plans
+  if (!Array.isArray(p.mealIds)) {
+    p.mealIds = p.mealId ? [p.mealId] : [];
   }
 
+  return p;
+}
+
+
   async function setMealPlan(dateISO, slot, mealId) {
-    await window.DB.upsertMealPlan({ date: dateISO, slot, mealId });
-    await refreshMeals();
+  const plans = await window.DB.getAll(window.DB.STORES.mealPlans);
+  const existing = plans.find(
+    p => !p._deleted && p.date === dateISO && p.slot === slot
+  );
+
+  let mealIds = [];
+
+  if (existing) {
+    mealIds = Array.isArray(existing.mealIds)
+      ? [...existing.mealIds]
+      : existing.mealId
+        ? [existing.mealId]
+        : [];
   }
+
+  // 🔑 Prevent duplicates
+  if (!mealIds.includes(mealId)) {
+    mealIds.push(mealId);
+  }
+
+  await window.DB.upsertMealPlan({
+    id: existing?.id,
+    date: dateISO,
+    slot,
+    mealIds
+  });
+
+  await refreshMeals();
+}
+
 
   async function clearMealPlan(dateISO, slot) {
     const all = await window.DB.getAll(window.DB.STORES.mealPlans);
@@ -4846,7 +4913,12 @@ mealsWrap.classList.toggle("stack", mealsListHidden);
       cell.className = "mealSlot";
 
       const existing = findPlan(plans, dateISO, s);
-      const mealName = existing ? (meals.find(m => m.id === existing.mealId)?.name || "—") : "";
+      const mealNames = existing
+  ? existing.mealIds
+      .map(id => meals.find(m => m.id === id)?.name)
+      .filter(Boolean)
+  : [];
+
 
       cell.innerHTML = `
   <div class="mealSlotHead">
@@ -4854,9 +4926,9 @@ mealsWrap.classList.toggle("stack", mealsListHidden);
     <button class="btn btn--ghost mealAddBtn" type="button">+</button>
   </div>
 
-  <div class="mealSlotBody ${mealName ? "" : "empty"}">
-    ${mealName
-      ? `<span class="mealPill">${escapeHtml(mealName)}</span>`
+  <div class="mealSlotBody ${mealNames.length ? "" : "empty"}">
+    ${mealNames.length
+      ? mealNames.map(n => `<span class="mealPill">${escapeHtml(n)}</span>`).join("")
       : `<span class="muted">${isTouchDevice() ? "Tap +" : "Drop here"}</span>`}
   </div>
 
@@ -4920,16 +4992,20 @@ if (isTouchDevice()) {
         const d = days[i];
         const dateISO = dateToISO(d);
         const existing = findPlan(plans, dateISO, s);
-        const mealName = existing ? (meals.find(m => m.id === existing.mealId)?.name || "—") : "";
+        const mealNames = existing
+  ? existing.mealIds.map(id => meals.find(m => m.id === id)?.name).filter(Boolean)
+  : [];
+
 
         const cell = document.createElement("div");
         cell.className = "cell mealCell";
         cell.innerHTML = `
-  <div class="mealCellBody ${mealName ? "" : "empty"}">
-    ${mealName
-      ? `<span class="mealPill">${escapeHtml(mealName)}</span>`
+    <div class="mealCellBody ${mealNames.length ? "" : "empty"}">
+    ${mealNames.length
+      ? mealNames.map(n => `<span class="mealPill">${escapeHtml(n)}</span>`).join("")
       : `<span class="muted">${isTouchDevice() ? "+" : "Drop"}</span>`}
   </div>
+
 
 <button class="btn btn--ghost mealAddBtn" type="button">+</button>
   <button class="iconBtn" type="button" title="Clear">×</button>
@@ -5560,14 +5636,6 @@ if (!ok) return;
     // --------------------------------------------------
 // Trash retention: purge items deleted > 7 days ago
 // --------------------------------------------------
-try {
-  const cutoff = Date.now() - BIN_RETENTION_MS;
-  if (window.DB.purgeDeletedOlderThan) {
-    await window.DB.purgeDeletedOlderThan(cutoff);
-  }
-} catch (e) {
-  console.warn("Trash purge failed:", e);
-}
 
     if (!window.DB) {
       alert("DB layer not available. Check that db.js is loading and defines window.DB.");
@@ -5575,6 +5643,15 @@ try {
     }
 
     await window.DB.init();
+
+    try {
+  const cutoff = Date.now() - BIN_RETENTION_MS;
+  if (window.DB.purgeDeletedOlderThan) {
+    await window.DB.purgeDeletedOlderThan(cutoff);
+  }
+} catch (e) {
+  console.warn("Trash purge failed:", e);
+}
     
 
     initTabs();
