@@ -437,14 +437,13 @@ mealPickerBackdrop?.addEventListener("click", () => {
   const notesList = $("notesList");
   const noteCollectionSelect = $("noteCollectionSelect");
 const noteProjectSelect = $("noteProjectSelect");
+const notesProjectFilter = $("notesProjectFilter");
   const collectionList = $("collectionList");
 const btnAddCollection = $("btnAddCollection");
 
-// Notes desktop filters
-const notesProjectFilterBtn = $("notesProjectFilterBtn");
-const notesProjectFilterPanel = $("notesProjectFilterPanel");
-const notesCollectionFilterBtn = $("notesCollectionFilterBtn");
-const notesCollectionFilterPanel = $("notesCollectionFilterPanel");
+
+
+
 
 
 // Notes collections drawer (mobile)
@@ -470,43 +469,8 @@ notesDrawerBackdrop?.addEventListener("click", closeNotesDrawer);
 // Mirror desktop collections into mobile drawer
 async function refreshCollectionsMobile() {
   if (!collectionListMobile) return;
-
-  // Clone markup
   collectionListMobile.innerHTML = collectionList.innerHTML;
-
-  // Re-bind behaviour for mobile drawer items
-  const items = collectionListMobile.querySelectorAll("li");
-
-  items.forEach((li) => {
-    const text = li.textContent || "";
-    if (!text) return;
-
-    li.addEventListener("click", () => {
-      // Match by collection name
-      const name = text.replace(" (archived)", "").trim();
-
-      if (name === "All notes") {
-        notesMode = "all";
-        selectedCollectionId = null;
-        filterState.notesCollections.clear();
-        filterState.notesCollections.add("__ALL__");
-      } else {
-        const match = lastCollectionsCache?.find(c => c.name === name);
-        if (!match) return;
-
-        selectedCollectionId = match.id;
-        notesMode = "collection";
-        filterState.notesCollections.clear();
-        filterState.notesCollections.add(match.id);
-      }
-
-      closeNotesDrawer();
-      refreshNotes();
-      refreshCollections();
-    });
-  });
 }
-
 
 btnAddCollectionMobile?.addEventListener("click", () => {
   closeNotesDrawer();
@@ -631,7 +595,6 @@ let rolloverSelectedDate = null;
   let showArchivedCollections = false;
   let selectedNotesProjectId = null;
   let notesMode = "all"; // "all" or "collection"
-let lastCollectionsCache = [];
 
 
 
@@ -648,19 +611,6 @@ let lastCollectionsCache = [];
     notesProjects: new Set(["__ALL__"]),
 notesCollections: new Set(["__ALL__"])
   };
-
-  // --------------------------------------------------
-// Ensure IndexedDB is initialised before use
-// --------------------------------------------------
-async function ensureDbReady() {
-  if (!window.DB || typeof window.DB.init !== "function") return;
-
-  if (window.DB._ready) return;
-
-  await window.DB.init();
-  window.DB._ready = true;
-}
-
 
   /* ---------------------------------------------------------
      Utilities
@@ -1301,9 +1251,7 @@ function isTouchDevice() {
   await window.fbAuth.signOut();
 
   // 2. Immediately clear all local data
-  await ensureDbReady();
-await window.DB.importAll({}, { overwrite: true });
-
+  await window.DB.importAll({}, { overwrite: true });
 
   // 3. Clear sync timestamps
   await window.DB.setSetting("sync.lastPullAt", 0);
@@ -1348,19 +1296,14 @@ if (window.Sync && typeof window.Sync.discardUnauthenticatedLocalData === "funct
       // IMPORTANT: DO NOT delete local data on login
       // Only pull data from Firebase and merge it
       if (window.Sync && typeof window.Sync.initialSync === "function") {
-  try {
-    // 1) Perform the background/delta sync as before
-    await window.Sync.initialSync();
+        try {
+          await window.Sync.initialSync();
+        } catch (e) {
+          console.warn("Initial sync failed:", e);
+        }
+      }
 
-    // 🔑 Force dashboard recalculation after cloud sync
-await refreshDashboard();
-
-  } catch (e) {
-    console.warn("Initial sync failed:", e);
-  }
-}
-
-// Run daily to-do rollover AFTER sync (so cloud does not overwrite it)
+      // Run daily to-do rollover AFTER sync (so cloud does not overwrite it)
 const today = todayStrISO();
 const lastRollover = await window.DB.getSetting("ui.lastTodoRollover", null);
 
@@ -1372,31 +1315,13 @@ if (
   await window.DB.setSetting("ui.lastTodoRollover", today);
 }
 
-// ---- NEW: reinitialise dashboard state and refresh dependent views
-// Reset the dashboard period (this calls refreshDashboard() internally)
-if (typeof setDashboardPeriod === "function") {
-  setDashboardPeriod("Week");
-} else if (typeof refreshDashboard === "function") {
-  // fallback: ensure dashboard is refreshed even if setDashboardPeriod isn't available
-  await refreshDashboard();
-}
-
-// Also refresh the lists that feed the dashboard so indices and counts are current
-if (typeof refreshTodoIndex === "function") await refreshTodoIndex();
-if (typeof refreshTodoDetail === "function") await refreshTodoDetail(); // if a date is open
-if (typeof refreshJournalIndex === "function") await refreshJournalIndex();
-if (typeof refreshHabits === "function") await refreshHabits();
-if (typeof refreshProjectsAndActions === "function") await refreshProjectsAndActions();
-
-
     } else {
   // User just logged out → wipe all local data immediately
 
   setAuthStatus("Not signed in.");
 
   // 1. Clear all local IndexedDB data
-await ensureDbReady();
-await window.DB.importAll({}, { overwrite: true });
+  await window.DB.importAll({}, { overwrite: true });
 
   // 2. Clear sync timestamps
   await window.DB.setSetting("sync.lastPullAt", 0);
@@ -1809,32 +1734,21 @@ for (const tag of REFLECTION_TAGS) {
     ta.className = "textarea autosize";
     ta.rows = 6;
 
-    const vals = mergedHealthTags
-  .map(t => (goal.content?.[t] || "").trim())
-  .filter(Boolean);
-
-// If the three fields all contain the same text, show it once
-const uniq = Array.from(new Set(vals));
-
-ta.value = uniq.join("\n\n");
-
+    ta.value = mergedHealthTags
+      .map(t => goal.content?.[t]?.trim())
+      .filter(Boolean)
+      .join("\n\n");
 
     ta.addEventListener("input", () => {
-  const val = ta.value || "";
-
-  // Store merged content in ONE place only
-  goal.content.health = val;
-
-  // Clear the others so we never display duplicates again
-  goal.content.nutrition = "";
-  goal.content.sleep = "";
-
-  debounce(`goal_autosave_${goal.id}`, 250, async () => {
-    await saveGoalDraft(goal);
-  });
-  autosizeTextarea(ta);
-});
-
+      const val = ta.value || "";
+      for (const t of mergedHealthTags) {
+        goal.content[t] = val;
+      }
+      debounce(`goal_autosave_${goal.id}`, 250, async () => {
+        await saveGoalDraft(goal);
+      });
+      autosizeTextarea(ta);
+    });
 
     field.appendChild(ta);
     goalsDetailWrap.appendChild(field);
@@ -1872,80 +1786,6 @@ ta.value = uniq.join("\n\n");
   autosizeTextarea(ta);
 }
 
-// ==================================================
-// Reflections (Annual / Monthly goals only)
-// ==================================================
-
-if (goal.type === "annual" || goal.type === "monthly") {
-  const divider = document.createElement("hr");
-  divider.style.margin = "24px 0";
-  goalsDetailWrap.appendChild(divider);
-
-  const header = document.createElement("div");
-  header.className = "cardHeader";
-  header.style.marginBottom = "8px";
-
-  const title = document.createElement("div");
-  title.className = "cardTitle";
-  title.textContent = "Reflections";
-
-  const toggleBtn = document.createElement("button");
-  toggleBtn.className = "btn btn--ghost";
-  toggleBtn.type = "button";
-  toggleBtn.textContent = "Show reflections";
-
-  header.appendChild(title);
-  header.appendChild(toggleBtn);
-  goalsDetailWrap.appendChild(header);
-
-  const wrap = document.createElement("div");
-  wrap.className = "hidden";
-
-  const reflection = goal.reflection || (goal.reflection = {});
-
-  const makeField = (labelText, key) => {
-    const field = document.createElement("div");
-    field.className = "field";
-
-    const label = document.createElement("label");
-    label.textContent = labelText;
-    field.appendChild(label);
-
-    const ta = document.createElement("textarea");
-    ta.className = "textarea autosize";
-    ta.rows = 4;
-    ta.value = reflection[key] || "";
-
-    ta.addEventListener("input", () => {
-      reflection[key] = ta.value || "";
-      debounce(`goal_reflection_${goal.id}`, 300, async () => {
-        await window.DB.upsertGoal({
-          id: goal.id,
-          reflection
-        });
-      });
-      autosizeTextarea(ta);
-    });
-
-    field.appendChild(ta);
-    wrap.appendChild(field);
-    autosizeTextarea(ta);
-  };
-
-  makeField("What went well", "wentWell");
-  makeField("What didn’t go well", "didNotGoWell");
-  makeField("Lessons / changes going forward", "lessons");
-
-  goalsDetailWrap.appendChild(wrap);
-
-  toggleBtn.addEventListener("click", () => {
-    const hidden = wrap.classList.toggle("hidden");
-    toggleBtn.textContent = hidden
-      ? "Show reflections"
-      : "Hide reflections";
-  });
-}
-
 
   }
 
@@ -1960,22 +1800,19 @@ if (goal.type === "annual" || goal.type === "monthly") {
   }
 
   async function ensureLongTermGoal() {
-  const goals = await getAllGoals();
-  let g = goals.find(x => x.type === "long_term");
-
-  if (!g) {
-    // 🔑 Create locally ONLY — do NOT sync empty goal
-    g = await window.DB.upsertGoal({
-      id: "long_term",
-      type: "long_term",
-      period: null,
-      content: {}
-    });
+    const goals = await getAllGoals();
+    let g = goals.find(x => x.type === "long_term");
+    if (!g) {
+      g = await window.DB.upsertGoal({
+        id: "long_term",
+        type: "long_term",
+        period: null,
+        content: {}
+      });
+      try { await window.Sync?.pushItem?.("goals", g); } catch { /* ignore */ }
+    }
+    return g;
   }
-
-  return g;
-}
-
 
   async function addAnnualGoal() {
     const goals = await getAllGoals();
@@ -2185,8 +2022,6 @@ btnAddGoalPeriod?.addEventListener("touchstart", onAddGoal, { passive: false });
 
   // Expose for tab switching
   window.refreshGoals = refreshGoals;
-  window.refreshDashboard = refreshDashboard;
-
 
 
   /* ---------------------------------------------------------
@@ -2409,7 +2244,7 @@ if (expGoals.checked) {
      Tabs
   --------------------------------------------------------- */
 
-  async function setTab(tab) {
+  function setTab(tab) {
     for (const t of views) {
       const v = $("view-" + t);
       const btn = $("tab-" + t);
@@ -2436,23 +2271,10 @@ if (expGoals.checked) {
     if (tab === "habits") { refreshHabits(); refreshHabitTrack(); }
     if (tab === "meals") refreshMeals();
     if (tab === "notes") {
-  // Ensure Notes DOM is rendered before building filters
-  await new Promise(requestAnimationFrame);
-
-  notesMode = "all";
-  selectedCollectionId = null;
-
-  filterState.notesCollections.clear();
-  filterState.notesCollections.add("__ALL__");
-
-  await buildNotesFilters();
-
-  refreshCollections();
-  refreshNotes();
-}
-
-
-
+      refreshCollections();
+      refreshNotesProjectFilter();
+      refreshNotes();
+    }
     if (tab === "goals") {
   if (typeof window.refreshGoals === "function") {
     requestAnimationFrame(() => {
@@ -2689,7 +2511,26 @@ bindDashboardPeriod(dashPeriodYear, "Year");
 
     
 
-        // Failed on the day (rolled over)
+    function journalCompletionForDates(dates) {
+  let completedDays = 0;
+
+  for (const d of dates) {
+    const entry = journals.find(j => j.date === d);
+    if (!entry) continue;
+
+    const hasText =
+      (entry.gratitude && entry.gratitude.trim().length > 0) ||
+      (entry.objectives && entry.objectives.trim().length > 0) ||
+      (entry.reflections && entry.reflections.trim().length > 0);
+
+    if (hasText) completedDays++;
+  }
+
+  return dates.length ? completedDays / dates.length : NaN;
+}
+
+
+    // Failed on the day (rolled over)
     if (Array.isArray(t.rolloverFailures)) {
       for (const d of t.rolloverFailures) {
         if (dates.includes(d)) {
@@ -2766,16 +2607,9 @@ function journalCompletionForDates(dates) {
     if (!entry) continue;
 
     const hasText =
-  (typeof entry.gratitude === "string" && entry.gratitude.trim().length > 0) ||
-  (typeof entry.objectives === "string" && entry.objectives.trim().length > 0) ||
-  (
-    entry.reflections &&
-    typeof entry.reflections === "object" &&
-    Object.values(entry.reflections).some(
-      v => typeof v === "string" && v.trim().length > 0
-    )
-  );
-
+      (entry.gratitude && entry.gratitude.trim().length > 0) ||
+      (entry.objectives && entry.objectives.trim().length > 0) ||
+      (entry.reflections && entry.reflections.trim().length > 0);
 
     if (hasText) completedDays++;
   }
@@ -4968,12 +4802,9 @@ mealsWrap.classList.toggle("stack", mealsListHidden);
     }
   }
 
-  function findPlans(plans, dateISO, slot) {
-  return plans.filter(
-    p => p.date === dateISO && p.slot === slot && !p._deleted
-  );
-}
-
+  function findPlan(plans, dateISO, slot) {
+    return plans.find(p => p.date === dateISO && p.slot === slot && !p._deleted) || null;
+  }
 
   async function setMealPlan(dateISO, slot, mealId) {
     await window.DB.upsertMealPlan({ date: dateISO, slot, mealId });
@@ -5014,31 +4845,23 @@ mealsWrap.classList.toggle("stack", mealsListHidden);
       const cell = document.createElement("div");
       cell.className = "mealSlot";
 
-      const existing = findPlans(plans, dateISO, s);
+      const existing = findPlan(plans, dateISO, s);
+      const mealName = existing ? (meals.find(m => m.id === existing.mealId)?.name || "—") : "";
 
-const mealNames = existing
-  .map(p => meals.find(m => m.id === p.mealId)?.name)
-  .filter(Boolean);
-
-cell.innerHTML = `
+      cell.innerHTML = `
   <div class="mealSlotHead">
     ${slotLabel(s)}
     <button class="btn btn--ghost mealAddBtn" type="button">+</button>
   </div>
 
-  <div class="mealSlotBody ${mealNames.length ? "" : "empty"}">
-    ${
-      mealNames.length
-        ? mealNames
-            .map(name => `<span class="mealPill">${escapeHtml(name)}</span>`)
-            .join("")
-        : `<span class="muted">${isTouchDevice() ? "Tap +" : "Drop here"}</span>`
-    }
+  <div class="mealSlotBody ${mealName ? "" : "empty"}">
+    ${mealName
+      ? `<span class="mealPill">${escapeHtml(mealName)}</span>`
+      : `<span class="muted">${isTouchDevice() ? "Tap +" : "Drop here"}</span>`}
   </div>
 
   <button class="iconBtn" type="button" title="Clear">×</button>
 `;
-
 
 
       const body = cell.querySelector(".mealSlotBody");
@@ -5225,18 +5048,30 @@ requestAnimationFrame(() => {
     notesDetailCard?.classList.remove("hidden");
   }
 
-  
+  async function refreshNotesProjectFilter() {
+  if (!notesProjectFilter) return;
+
+  const projects = (await window.DB.getAll(window.DB.STORES.projects))
+    .filter(p => !p._deleted && !p.archived)
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  notesProjectFilter.innerHTML = `<option value="">All projects</option>`;
+
+  for (const p of projects) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name;
+    notesProjectFilter.appendChild(opt);
+  }
+
+  notesProjectFilter.value = selectedNotesProjectId || "";
+}
+
 
   async function refreshCollections() {
-  const allCollections = (await window.DB.getAll(window.DB.STORES.collections))
-  .filter(c => !c._deleted);
-
-  lastCollectionsCache = allCollections.slice();
-
-
-const activeCollections = allCollections.filter(c => !c.archived);
-const archivedCollections = allCollections.filter(c => c.archived);
-
+  const collections = (await window.DB.getAll(window.DB.STORES.collections))
+  .filter(c => !c._deleted)
+  .filter(c => showArchivedCollections || !c.archived);
 
 
   collectionList.innerHTML = "";
@@ -5264,7 +5099,7 @@ const archivedCollections = allCollections.filter(c => c.archived);
  
 
 
-  for (const c of activeCollections) {
+  for (const c of collections) {
     const li = document.createElement("li");
 li.textContent = c.name + (c.archived ? " (archived)" : "");
     li.className = selectedCollectionId === c.id ? "active" : "";
@@ -5281,9 +5116,6 @@ li.textContent = c.name + (c.archived ? " (archived)" : "");
   refreshNotes();
   refreshCollections();
 };
-
-
-
 
 
 const openCollectionEditor = async () => {
@@ -5339,8 +5171,7 @@ li.addEventListener("touchend", (e) => {
     e.preventDefault();
     openCollectionEditor();
   }
-
-    lastTap = now;
+  lastTap = now;
 });
 
 
@@ -5348,36 +5179,6 @@ li.addEventListener("touchend", (e) => {
 refreshCollectionsMobile();
     collectionList.appendChild(li);
   }
-
-  if (showArchivedCollections) {
-  for (const c of archivedCollections) {
-    const li = document.createElement("li");
-    li.textContent = c.name + " (archived)";
-    li.className = selectedCollectionId === c.id ? "active" : "";
-
-    li.onclick = () => {
-      selectedCollectionId = c.id;
-      notesMode = "collection";
-
-      filterState.notesCollections.clear();
-      filterState.notesCollections.add(c.id);
-
-      showNotesIndex();
-      refreshNotes();
-      refreshCollections();
-    };
-
-    li.addEventListener("dblclick", () => {
-      editingCollectionId = c.id;
-      collectionModalTitle.textContent = "Edit collection";
-      collectionNameInput.value = c.name;
-      btnArchiveCollection.textContent = "Unarchive";
-      showModal(collectionModal);
-    });
-
-    collectionList.appendChild(li);
-  }
-}
 }
 btnAddCollection?.addEventListener("click", () => {
   editingCollectionId = null;
@@ -5395,47 +5196,34 @@ btnCloseCollectionModal?.addEventListener("click", () => hideModal(collectionMod
 collectionBackdrop?.addEventListener("click", () => hideModal(collectionModal));
 
 btnSaveCollection?.addEventListener("click", async () => {
-  try {
-    const name = (collectionNameInput.value || "").trim();
-    if (!name) return;
+  const name = (collectionNameInput.value || "").trim();
+  if (!name) return;
 
-    if (editingCollectionId) {
-      const existing = await window.DB.getOne(
-        window.DB.STORES.collections,
-        editingCollectionId
-      );
-      if (!existing) return;
+  if (editingCollectionId) {
+    const existing = await window.DB.getOne(window.DB.STORES.collections, editingCollectionId);
+    if (!existing) return;
 
-      await window.DB.put(window.DB.STORES.collections, {
-        ...existing,
-        name,
-        updatedAt: Date.now()
-      });
-    } else {
-      const id =
-        (window.crypto && typeof window.crypto.randomUUID === "function")
-          ? window.crypto.randomUUID()
-          : ("c_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2));
-
-      await window.DB.put(window.DB.STORES.collections, {
-        id,
-        name,
-        archived: false,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        _deleted: false
-      });
-    }
-
-    hideModal(collectionModal);
-    await refreshCollections();
-    await refreshNotes();
-  } catch (e) {
-    alert(e?.message || String(e));
-    console.error(e);
-  }
+    await window.DB.put(window.DB.STORES.collections, {
+      ...existing,
+      name,
+      updatedAt: Date.now()
+    });
+  } else {
+    await window.DB.put(window.DB.STORES.collections, {
+  id: crypto.randomUUID(),
+  name,
+  archived: false,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  _deleted: false
 });
 
+  }
+
+  hideModal(collectionModal);
+  await refreshCollections();
+  await refreshNotes();
+});
 
 
 async function populateNotesProjectFilter() {
@@ -5454,8 +5242,8 @@ async function populateNotesProjectFilter() {
 
 
   async function refreshNotes() {
-
-    
+  showNotesIndex();
+  await buildNotesFilters();
 
 
   if (notesSearchInput) {
@@ -5522,18 +5310,6 @@ if (!projSet.has("__ALL__")) {
     n.projectId && projSet.has(n.projectId)
   );
 }
-
-// ---------- Collection filter (desktop filter, not sidebar) ----------
-if (notesMode !== "collection") {
-  const colSet = filterState.notesCollections;
-
-  if (!colSet.has("__ALL__")) {
-    filteredNotes = filteredNotes.filter(n =>
-      n.collectionId && colSet.has(n.collectionId)
-    );
-  }
-}
-
 
 
   // --------------------------------------------------
@@ -5639,9 +5415,15 @@ noteProjectSelect?.addEventListener("change", () => {
 });
 
 
- 
+  notesProjectFilter?.addEventListener("change", () => {
+  selectedNotesProjectId = notesProjectFilter.value || null;
+  refreshNotes();
+});
 
  btnNewNote?.addEventListener("click", async () => {
+
+    
+
   const input = {
     title: "",
     body: ""
@@ -5657,13 +5439,14 @@ noteProjectSelect?.addEventListener("change", () => {
 
   const rec = await window.DB.upsertNote(input);
 
-  // IMPORTANT: open editor FIRST
+  await refreshNotes();
   await openNote(rec.id);
 
-  // THEN refresh list (without forcing index)
-  await refreshNotes();
+  requestAnimationFrame(() => {
+    noteTitle.focus();
+    noteTitle.select();
+  });
 });
-
 
 
 
@@ -5765,8 +5548,7 @@ if (!ok) return;
     noteBody.value = "";
     noteCreated.textContent = "—";
     noteUpdated.textContent = "—";
-    showNotesIndex();
-await refreshNotes();
+    await refreshNotes();
   });
 
   /* ---------------------------------------------------------
@@ -5793,7 +5575,6 @@ try {
     }
 
     await window.DB.init();
-    window.DB._ready = true;
     
 
     initTabs();
@@ -5838,6 +5619,8 @@ await maybeRunDailyTodoRollover();
 
     setTab("dashboard");
     await refreshCollections();
+    await buildNotesFilters();
+    await refreshNotesProjectFilter();
 
   }
 
