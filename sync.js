@@ -274,6 +274,23 @@ async function pushAllDirty() {
   const user = window.fbAuth?.currentUser;
   if (!user) return;
 
+  let hasDirty = false;
+
+  // 🔑 FIRST PASS: detect if anything is dirty
+  for (const store of STORE_LIST) {
+    const storeName = window.DB.STORES[store] || store;
+    const items = await window.DB.getAll(storeName);
+
+    if (items.some(item => item && item._dirty)) {
+      hasDirty = true;
+      break;
+    }
+  }
+
+  // 🔑 GUARD: nothing to push → exit early
+  if (!hasDirty) return;
+
+  // 🔁 SECOND PASS: push dirty records
   for (const store of STORE_LIST) {
     const storeName = window.DB.STORES[store] || store;
     const items = await window.DB.getAll(storeName);
@@ -283,12 +300,13 @@ async function pushAllDirty() {
         try {
           await pushItem(store, item);
         } catch {
-          // leave dirty; will retry later
+          // leave dirty; retry later
         }
       }
     }
   }
 }
+
 
 
 
