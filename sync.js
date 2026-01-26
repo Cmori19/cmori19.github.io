@@ -1,5 +1,8 @@
 // sync.js — delta-based, event-driven sync
 (function () {
+
+  let isFullPullInProgress = false;
+
   const STORE_LIST = [
     "projects",
     "actions",
@@ -42,6 +45,8 @@
     return obj.id;
   }
 
+  
+
   /* -------------------------------------------------------
      PUSH — single item
   ------------------------------------------------------- */
@@ -65,10 +70,11 @@ await ref.set(item, { merge: true });
 
 // 🔑 Clear dirty flag locally after successful push
 const storeName = window.DB.STORES[store] || store;
-await window.DB.put(storeName, {
+await window.DB.putNoSync(storeName, {
   ...item,
   _dirty: false
 });
+
   }
 
   /* -------------------------------------------------------
@@ -76,6 +82,7 @@ await window.DB.put(storeName, {
   ------------------------------------------------------- */
 
   async function pullDeltas() {
+    if (isFullPullInProgress) return;
     if (!isOnline()) return;
     if (!getUser()) {
   console.warn("[SYNC] Skipped pull: user not authenticated");
@@ -140,10 +147,11 @@ if (local && !local._deleted) {
 }
 
 /* ---------- APPLY REMOTE RECORD ---------- */
-await window.DB.put(storeName, {
+await window.DB.putNoSync(storeName, {
   ...data,
   _dirty: false
 });
+
 
         newestSeen = Math.max(newestSeen, data.updatedAt || 0);
       }
@@ -180,7 +188,6 @@ await window.DB.put(storeName, {
   async function initialSync() {
   await pushAllDirty();   // 🔑 push offline edits first
   await pullDeltas();     // then pull cloud
-  startBackgroundPull();
 }
 
 
@@ -208,11 +215,15 @@ await window.DB.put(storeName, {
 
 
 async function fullPullAllFromCloud() {
+  
   if (!navigator.onLine) return;
 
   const user = window.fbAuth?.currentUser;
   const db = window.fbDb;
   if (!user || !db) return;
+
+  isFullPullInProgress = true;
+
 
   // IMPORTANT: ignore any previous sync timestamps
   let newestSeen = 0;
@@ -258,7 +269,10 @@ if (store === "journal") {
   }
 }
 
-await window.DB.put(storeName, data);
+await window.DB.putNoSync(storeName, {
+  ...data,
+  _dirty: false
+});
       newestSeen = Math.max(newestSeen, data.updatedAt || 0);
     }
   }
@@ -267,6 +281,9 @@ await window.DB.put(storeName, data);
     await window.DB.setSetting("sync.lastPullAt", newestSeen);
   }
 }
+
+isFullPullInProgress = false;
+
 
 async function pushAllDirty() {
   if (!navigator.onLine) return;
