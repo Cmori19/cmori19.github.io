@@ -1308,23 +1308,24 @@ if (window.Sync && typeof window.Sync.discardUnauthenticatedLocalData === "funct
   }
 }
 
-// 🔑 BOOTSTRAP: pull ALL user data once after local wipe
-if (window.Sync && typeof window.Sync.fullPullAllFromCloud === "function") {
-  try {
-    await window.Sync.fullPullAllFromCloud();
-  } catch (e) {
-    console.warn("Full pull failed:", e);
-  }
-}
-
-// 🔁 Resume normal delta sync
+// 🔑 BOOTSTRAP: first sync after login
+// - Push any offline edits first
+// - Full pull only if we have never pulled before
+// - Otherwise do deltas
 if (window.Sync && typeof window.Sync.initialSync === "function") {
   try {
-    await window.Sync.initialSync();
+    const lastPull = await window.DB.getSetting("sync.lastPullAt", 0);
+    if (!lastPull && typeof window.Sync.fullPullAllFromCloud === "function") {
+      await window.Sync.fullPullAllFromCloud();
+    } else {
+      await window.Sync.initialSync();
+    }
   } catch (e) {
     console.warn("Initial sync failed:", e);
   }
 }
+
+
 
 // 🔄 Refresh UI after local DB is populated
 refreshDashboard();
@@ -1401,25 +1402,11 @@ if (
     }
   });
 
-  // Autosync every 30 seconds (as requested)
-  let autoSyncTimer = null;
-  function startAutoSync() {
-    if (autoSyncTimer) clearInterval(autoSyncTimer);
-    autoSyncTimer = setInterval(async () => {
-      try {
-        if (!navigator.onLine) return;
-        const user = window.fbAuth && window.fbAuth.currentUser;
-        if (!user) return;
-        if (window.syncNow) await window.syncNow(() => {});
-        const ts = Date.now();
-        await window.DB.setSetting("sync.lastAt", ts);
-        updateSyncStamp(ts, "Last synced");
-        updateTopbar();
-      } catch {
-        updateTopbar();
-      }
-    }, 30000);
-  }
+  // Autosync disabled: idle usage must generate zero Firestore traffic
+function startAutoSync() {
+  // Intentionally empty
+}
+
 
   /* ---------------------------------------------------------
      Tabs visibility (Show/Hide tabs) - fix
@@ -5677,7 +5664,6 @@ if (!ok) return;
     setMealMode("daily");
 
     updateTopbar();
-    startAutoSync();
 
 // Open rollover analysis when clicking the to-do completion card
 const todoMetricValue = document.getElementById("mTodoWeek");
