@@ -110,12 +110,6 @@
   }
 
   function put(store, value) {
-
-    // 🔒 Ensure every record has updatedAt
-if (!value.updatedAt) {
-  value.updatedAt = Date.now();
-}
-
   return new Promise((resolve, reject) => {
     const t = tx(store, "readwrite");
     const s = t.objectStore(store);
@@ -125,15 +119,13 @@ if (!value.updatedAt) {
   try {
     // IMPORTANT: never attempt Firebase sync when logged out
     if (
-  window.fbAuth &&
-  window.fbAuth.currentUser &&
-  window.Sync &&
-  typeof window.Sync.pushItem === "function" &&
-  !(window.__syncInternal && window.__syncInternal.isPulling())
-) {
-  await window.Sync.pushItem(store, value);
-}
-
+      window.fbAuth &&
+      window.fbAuth.currentUser &&
+      window.Sync &&
+      typeof window.Sync.pushItem === "function"
+    ) {
+      await window.Sync.pushItem(store, value);
+    }
   } catch (e) {
     console.warn("Sync push failed:", e);
   }
@@ -690,20 +682,17 @@ rec.stress = input.stress ?? rec.stress ?? null;
   async function deleteMeal(id) { await markDeleted(STORES.meals, id); }
 
   async function upsertMealPlan(input) {
-  const rec = {
-    id: uid(),
-    date: input.date,
-    slot: input.slot,
-    mealId: input.mealId,
-    createdAt: nowTs(),
-    updatedAt: nowTs(),
-    _deleted: false
-  };
-
-  await put(STORES.mealPlans, rec);
-  return rec;
-}
-
+    const all = await getAll(STORES.mealPlans);
+    const ex = all.find(p => !p._deleted && p.date === input.date && p.slot === input.slot) || null;
+    const id = ex ? ex.id : uid();
+    const rec = ex && !ex._deleted ? ex : { id, createdAt: nowTs(), _deleted: false };
+    rec.date = input.date;
+    rec.slot = input.slot;
+    rec.mealId = input.mealId;
+    rec.updatedAt = nowTs();
+    await put(STORES.mealPlans, rec);
+    return rec;
+  }
 
   async function deleteMealPlan(id) { await markDeleted(STORES.mealPlans, id); }
 
@@ -844,7 +833,6 @@ async function upsertGoal(input) {
   rec.type = input.type;
   rec.period = input.period ?? null;
   rec.content = input.content ?? rec.content ?? {};
-  rec.reflection = input.reflection ?? rec.reflection ?? {};
   rec.updatedAt = nowTs();
 
   await put(STORES.goals, rec);
@@ -865,7 +853,6 @@ async function deleteGoal(id) {
 // Permanent purge of soft-deleted records (Trash retention)
 // ==========================================================
 async function purgeDeletedOlderThan(cutoffTs) {
-  if (!db) return;
   for (const store of Object.values(STORES)) {
     const all = await getAll(store);
 
