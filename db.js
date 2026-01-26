@@ -155,6 +155,7 @@
         if (!rec) return resolve(true);
         rec._deleted = true;
         rec.deletedAt = nowTs();
+        rec._dirty = true;
         await put(store, rec);
         resolve(true);
       } catch (e) { reject(e); }
@@ -283,7 +284,7 @@ async function unarchiveProject(id) {
     rec.dueDate = input.dueDate || rec.dueDate || "";
     rec.notes = input.notes || rec.notes || "";
     rec.updatedAt = nowTs();
-
+    rec._dirty = true;
     await put(STORES.actions, rec);
     return rec;
   }
@@ -368,7 +369,7 @@ async function deleteProject(id) {
     rec.projectId = (input.projectId === undefined ? rec.projectId : input.projectId) || null;
     rec.actionId = (input.actionId === undefined ? rec.actionId : input.actionId) || null;
     rec.updatedAt = nowTs();
-
+    rec._dirty = true;
     await ensureTodoList(rec.date);
 
     // 🔒 ACTION LINKING RULE
@@ -566,7 +567,7 @@ if (!rec.reflections || typeof rec.reflections !== "object") {
 rec.energy = input.energy ?? rec.energy ?? null;
 rec.stress = input.stress ?? rec.stress ?? null;
   rec.updatedAt = nowTs();
-
+rec._dirty = true;
   await put(STORES.journal, rec);
   return rec;
 }
@@ -586,6 +587,7 @@ rec.stress = input.stress ?? rec.stress ?? null;
     rec.frequency = input.frequency || rec.frequency || "Daily";
     rec.archived = !!input.archived;
     rec.updatedAt = nowTs();
+    rec._dirty = true;
     await put(STORES.habits, rec);
     return rec;
   }
@@ -637,6 +639,7 @@ rec.stress = input.stress ?? rec.stress ?? null;
     rec.habitId = input.habitId;
     rec.date = input.date;
     rec.updatedAt = nowTs();
+    rec._dirty = true;
     await put(STORES.habitCompletions, rec);
     return rec;
   }
@@ -666,6 +669,7 @@ rec.stress = input.stress ?? rec.stress ?? null;
     rec.name = input.name || rec.name || "";
     rec.notes = input.notes ?? rec.notes ?? "";
     rec.updatedAt = nowTs();
+    rec._dirty = true;
     await put(STORES.meals, rec);
     return rec;
   }
@@ -682,17 +686,38 @@ rec.stress = input.stress ?? rec.stress ?? null;
   async function deleteMeal(id) { await markDeleted(STORES.meals, id); }
 
   async function upsertMealPlan(input) {
-    const all = await getAll(STORES.mealPlans);
-    const ex = all.find(p => !p._deleted && p.date === input.date && p.slot === input.slot) || null;
-    const id = ex ? ex.id : uid();
-    const rec = ex && !ex._deleted ? ex : { id, createdAt: nowTs(), _deleted: false };
-    rec.date = input.date;
-    rec.slot = input.slot;
-    rec.mealId = input.mealId;
-    rec.updatedAt = nowTs();
-    await put(STORES.mealPlans, rec);
-    return rec;
+  const all = await getAll(STORES.mealPlans);
+  const ex = all.find(p => !p._deleted && p.date === input.date && p.slot === input.slot) || null;
+
+  const id = input.id || (ex ? ex.id : uid());
+  const rec = ex && !ex._deleted ? ex : {
+    id,
+    createdAt: nowTs(),
+    ownerUid: currentUid(),  // ensure logged-in meal plans are owned
+    _deleted: false
+  };
+
+  rec.date = input.date;
+  rec.slot = input.slot;
+
+  // Accept new format (mealIds[]) and keep old format (mealId) compatible
+  if (Array.isArray(input.mealIds)) {
+    rec.mealIds = input.mealIds;
+    rec.mealId = input.mealIds[0] || null; // retained only for backward compatibility
+  } else {
+    rec.mealId = input.mealId ?? rec.mealId ?? null;
+    rec.mealIds = rec.mealId ? [rec.mealId] : [];
   }
+
+  // If record existed from older versions without ownerUid, set it when logged in
+  if (!rec.ownerUid) rec.ownerUid = currentUid();
+
+  rec.updatedAt = nowTs();
+  rec._dirty = true;
+  await put(STORES.mealPlans, rec);
+  return rec;
+}
+
 
   async function deleteMealPlan(id) { await markDeleted(STORES.mealPlans, id); }
 
@@ -834,7 +859,7 @@ async function upsertGoal(input) {
   rec.period = input.period ?? null;
   rec.content = input.content ?? rec.content ?? {};
   rec.updatedAt = nowTs();
-
+rec._dirty = true;
   await put(STORES.goals, rec);
   return rec;
 }
