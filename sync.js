@@ -61,7 +61,14 @@
     if (!id) return;
 
     const ref = db.doc(`${storePath(user.uid, store)}/${id}`);
-    await ref.set(item, { merge: true });
+await ref.set(item, { merge: true });
+
+// 🔑 Clear dirty flag locally after successful push
+const storeName = window.DB.STORES[store] || store;
+await window.DB.put(storeName, {
+  ...item,
+  _dirty: false
+});
   }
 
   /* -------------------------------------------------------
@@ -95,7 +102,49 @@
         const id = getId(store, data);
         if (!id) continue;
 
-        await window.DB.put(window.DB.STORES[store] || store, data);
+        const storeName = window.DB.STORES[store] || store;
+const id2 = getId(store, data);
+if (!id2) continue;
+
+const local = await window.DB.getOne(storeName, id2);
+
+/* ---------- CONTENT SAFETY (journals & notes only) ---------- */
+if (store === "journal" || store === "notes") {
+  if (local && !local._deleted) {
+    const localHasContent =
+      (local.gratitude && local.gratitude.trim()) ||
+      (local.objectives && local.objectives.trim()) ||
+      (local.body && local.body.trim()) ||
+      (local.reflections && Object.keys(local.reflections || {}).length > 0);
+
+    const remoteHasContent =
+      (data.gratitude && data.gratitude.trim()) ||
+      (data.objectives && data.objectives.trim()) ||
+      (data.body && data.body.trim()) ||
+      (data.reflections && Object.keys(data.reflections || {}).length > 0);
+
+    if (localHasContent && !remoteHasContent) {
+      continue;
+    }
+  }
+}
+
+/* ---------- TIMESTAMP SAFETY (all stores) ---------- */
+if (local && !local._deleted) {
+  const localTs = local.updatedAt || 0;
+  const remoteTs = data.updatedAt || 0;
+
+  if (localTs > remoteTs) {
+    continue;
+  }
+}
+
+/* ---------- APPLY REMOTE RECORD ---------- */
+await window.DB.put(storeName, {
+  ...data,
+  _dirty: false
+});
+
         newestSeen = Math.max(newestSeen, data.updatedAt || 0);
       }
     }
@@ -129,9 +178,11 @@
   }
 
   async function initialSync() {
-    await pullDeltas();
-    startBackgroundPull();
-  }
+  await pushAllDirty();   // 🔑 push offline edits first
+  await pullDeltas();     // then pull cloud
+  startBackgroundPull();
+}
+
 
  async function discardUnauthenticatedLocalData(uid) {
   const stores = Object.values(window.DB.STORES);
@@ -183,7 +234,31 @@ async function fullPullAllFromCloud() {
 
       if (!id) continue;
 
-      await window.DB.put(window.DB.STORES[store] || store, data);
+const storeName = window.DB.STORES[store] || store;
+
+// 🔒 Journal safety: never overwrite richer local content
+if (store === "journal") {
+  const local = await window.DB.getOne(storeName, data.date);
+
+  if (local && !local._deleted) {
+    const localHasText =
+      (local.gratitude && local.gratitude.trim()) ||
+      (local.objectives && local.objectives.trim()) ||
+      (local.reflections && Object.keys(local.reflections || {}).length > 0);
+
+    const remoteHasText =
+      (data.gratitude && data.gratitude.trim()) ||
+      (data.objectives && data.objectives.trim()) ||
+      (data.reflections && Object.keys(data.reflections || {}).length > 0);
+
+    // 🔑 If local has content and remote does not → SKIP overwrite
+    if (localHasText && !remoteHasText) {
+      continue;
+    }
+  }
+}
+
+await window.DB.put(storeName, data);
       newestSeen = Math.max(newestSeen, data.updatedAt || 0);
     }
   }
@@ -192,6 +267,29 @@ async function fullPullAllFromCloud() {
     await window.DB.setSetting("sync.lastPullAt", newestSeen);
   }
 }
+
+async function pushAllDirty() {
+  if (!navigator.onLine) return;
+
+  const user = window.fbAuth?.currentUser;
+  if (!user) return;
+
+  for (const store of STORE_LIST) {
+    const storeName = window.DB.STORES[store] || store;
+    const items = await window.DB.getAll(storeName);
+
+    for (const item of items) {
+      if (item && item._dirty) {
+        try {
+          await pushItem(store, item);
+        } catch {
+          // leave dirty; will retry later
+        }
+      }
+    }
+  }
+}
+
 
 
 
