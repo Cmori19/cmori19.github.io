@@ -1080,6 +1080,13 @@ async function ensureDbReady() {
     el.style.height = Math.min(el.scrollHeight, 800) + "px";
   }
 
+  function autosizeRichText(el) {
+  if (!el) return;
+
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+
   function bindRichTextToolbar(container) {
   const toolbar = container.previousElementSibling;
   if (!toolbar || !toolbar.classList.contains("richToolbar")) return;
@@ -3216,6 +3223,9 @@ jObjectives.innerHTML = rec?.objectives || "";
 
 bindRichTextToolbar(jGratitude);
 bindRichTextToolbar(jObjectives);
+autosizeRichText(jGratitude);
+autosizeRichText(jObjectives);
+
 
     // -----------------------------
 // TEMP: render tagged reflections (read-only for now)
@@ -3313,13 +3323,13 @@ const objectives = jObjectives.innerHTML || "";
 
 
 
-  [jGratitude, jObjectives, jReflections].forEach((el) => {
-    if (!el) return;
-    el.addEventListener("input", () => {
-      autosizeTextarea(el);
-      debounce("journal_autosave", 300, autosaveJournal);
-    });
+  [jGratitude, jObjectives].forEach((el) => {
+  if (!el) return;
+  el.addEventListener("input", () => {
+    autosizeRichText(el);
+    debounce("journal_autosave", 300, autosaveJournal);
   });
+});
 
   [journalMood, journalEnergy, journalStress].forEach(el => {
   el?.addEventListener("input", () => {
@@ -3400,10 +3410,11 @@ function renderReflectionSections() {
 ta.innerHTML = currentReflections[tag] || "";
 
     ta.addEventListener("input", () => {
-currentReflections[tag] = ta.innerHTML;
-      debounce("journal_autosave", 300, autosaveJournal);
-      autosizeTextarea(ta);
-    });
+  currentReflections[tag] = ta.innerHTML;
+  debounce("journal_autosave", 300, autosaveJournal);
+  bindRichTextToolbar(ta);
+  autosizeRichText(ta);
+});
 
     removeBtn.addEventListener("click", async () => {
   if (ta.value.trim()) {
@@ -5488,7 +5499,7 @@ noteProjectSelect.value = n.projectId || "";
     noteCreated.textContent = n.createdAt ? new Date(n.createdAt).toLocaleString() : "—";
     noteUpdated.textContent = n.updatedAt ? new Date(n.updatedAt).toLocaleString() : "—";
 
-    autosizeTextarea(noteBody);
+autosizeRichText(noteBody);
   }
 
 
@@ -5610,8 +5621,10 @@ const body = (noteBody.innerHTML || "").trim();
   }
 });
   noteBody?.addEventListener("input", () => {
+  autosizeRichText(noteBody);
   debounce("note_autosave", 250, autosaveNote);
 });
+
 
 
   btnSaveNote?.addEventListener("click", async () => {
