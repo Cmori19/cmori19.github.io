@@ -1549,6 +1549,27 @@ option {
 }
 
 
+.richText {
+  min-height: 120px;
+  white-space: normal;
+}
+
+.richText:focus {
+  outline: none;
+}
+
+.richToolbar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.richToolbar button {
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
 
 
 
