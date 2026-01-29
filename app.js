@@ -1080,6 +1080,20 @@ async function ensureDbReady() {
     el.style.height = Math.min(el.scrollHeight, 800) + "px";
   }
 
+  function bindRichTextToolbar(container) {
+  const toolbar = container.previousElementSibling;
+  if (!toolbar || !toolbar.classList.contains("richToolbar")) return;
+
+  toolbar.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const cmd = btn.getAttribute("data-cmd");
+      document.execCommand(cmd, false, null);
+      container.focus();
+    });
+  });
+}
+
+
   function wireAutosize() {
     document.querySelectorAll("textarea.autosize").forEach((ta) => {
       autosizeTextarea(ta);
@@ -3197,8 +3211,12 @@ currentReflections = rec?.reflections && typeof rec.reflections === "object"
 
 renderReflectionSections();
 
-    jGratitude.value = rec?.gratitude || "";
-    jObjectives.value = rec?.objectives || "";
+    jGratitude.innerHTML = rec?.gratitude || "";
+jObjectives.innerHTML = rec?.objectives || "";
+
+bindRichTextToolbar(jGratitude);
+bindRichTextToolbar(jObjectives);
+
     // -----------------------------
 // TEMP: render tagged reflections (read-only for now)
 // -----------------------------
@@ -3217,8 +3235,10 @@ const orderedTags = [
 for (const tag of orderedTags) {
   if (!reflections[tag]) continue;
 
-  const ta = document.createElement("textarea");
-  ta.className = "textarea autosize";
+  const ta = document.createElement("div");
+ta.className = "textarea richText autosize";
+ta.contentEditable = "true";
+
   ta.rows = 3;
   ta.value = reflections[tag];
 
@@ -3252,8 +3272,8 @@ journalStress.value = rec?.stress ?? "";
     currentJournalDate
   );
 
-  const gratitude = jGratitude.value || "";
-  const objectives = jObjectives.value || "";
+const gratitude = jGratitude.innerHTML || "";
+const objectives = jObjectives.innerHTML || "";
 
   // Clean reflections
   let cleanedReflections = {};
@@ -3377,10 +3397,10 @@ function renderReflectionSections() {
     const ta = document.createElement("textarea");
     ta.className = "textarea autosize";
     ta.rows = 3;
-    ta.value = currentReflections[tag] || "";
+ta.innerHTML = currentReflections[tag] || "";
 
     ta.addEventListener("input", () => {
-      currentReflections[tag] = ta.value;
+currentReflections[tag] = ta.innerHTML;
       debounce("journal_autosave", 300, autosaveJournal);
       autosizeTextarea(ta);
     });
@@ -3408,8 +3428,10 @@ function renderReflectionSections() {
     wrapper.appendChild(labelRow);
     wrapper.appendChild(ta);
     journalReflectionsList.appendChild(wrapper);
-
+    bindRichTextToolbar(ta);
     autosizeTextarea(ta);
+
+
   }
 }
 
@@ -5433,7 +5455,8 @@ if (!projSet.has("__ALL__")) {
     showNotesDetail();
 
     noteTitle.value = n.title || "";
-    noteBody.value = n.body || "";
+noteBody.innerHTML = n.body || "";
+bindRichTextToolbar(noteBody);
 
     // Populate collection selector
 const collections = (await window.DB.getAll(window.DB.STORES.collections))
@@ -5523,7 +5546,7 @@ noteProjectSelect?.addEventListener("change", () => {
   if (!existing || existing._deleted) return;
 
   const title = (noteTitle.value || "").trim();
-  const body = (noteBody.value || "").trim();
+const body = (noteBody.innerHTML || "").trim();
 
   const now = Date.now();
   const createdAt = existing.createdAt || now;
@@ -5587,9 +5610,9 @@ noteProjectSelect?.addEventListener("change", () => {
   }
 });
   noteBody?.addEventListener("input", () => {
-    autosizeTextarea(noteBody);
-    debounce("note_autosave", 250, autosaveNote);
-  });
+  debounce("note_autosave", 250, autosaveNote);
+});
+
 
   btnSaveNote?.addEventListener("click", async () => {
     await autosaveNote();
