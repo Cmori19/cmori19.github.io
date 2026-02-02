@@ -2511,10 +2511,11 @@ bindDashboardPeriod(dashPeriodYear, "Year");
 
   async function refreshDashboard() {
     const dump = await window.DB.exportAll();
-    const journals = (dump.journal || []).filter(j => !j._deleted);
-    const todos = (dump.todos || []).filter(x => !x._deleted);
-    const habits = (dump.habits || []).filter(x => !x._deleted && !x.archived);
-    const completions = (dump.habitCompletions || []).filter(x => !x._deleted);
+    const journals = (dump.journal || []).filter(j => !j._deleted && !j.deleted);
+const todos = (dump.todos || []).filter(x => !x._deleted && !x.deleted);
+const habits = (dump.habits || []).filter(x => !x._deleted && !x.deleted && !x.archived);
+const completions = (dump.habitCompletions || []).filter(x => !x._deleted && !x.deleted);
+
 
     const nowD = new Date();
     function colourForValue(pct) {
@@ -2543,7 +2544,7 @@ bindDashboardPeriod(dashPeriodYear, "Year");
   let done = 0;
 
   for (const t of todos) {
-    if (t._deleted) continue;
+if (t._deleted || t.deleted) continue;
 
     // Completed on the day
     if (dates.includes(t.date)) {
