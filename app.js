@@ -3432,10 +3432,10 @@ function renderReflectionSections() {
     const ta = document.createElement("textarea");
     ta.className = "textarea autosize";
     ta.rows = 3;
-ta.innerHTML = currentReflections[tag] || "";
+ta.value = currentReflections[tag] || "";
 
     ta.addEventListener("input", () => {
-  currentReflections[tag] = ta.innerHTML;
+  currentReflections[tag] = ta.value;
   debounce("journal_autosave", 300, autosaveJournal);
   bindRichTextToolbar(ta);
   autosizeRichText(ta);
