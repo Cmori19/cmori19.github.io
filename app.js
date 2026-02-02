@@ -1776,21 +1776,22 @@ for (const tag of REFLECTION_TAGS) {
     ta.className = "textarea autosize";
     ta.rows = 6;
 
-    ta.value = mergedHealthTags
-      .map(t => goal.content?.[t]?.trim())
-      .filter(Boolean)
-      .join("\n\n");
+    ta.value = goal.content?.["health"] || "";
 
     ta.addEventListener("input", () => {
-      const val = ta.value || "";
-      for (const t of mergedHealthTags) {
-        goal.content[t] = val;
-      }
-      debounce(`goal_autosave_${goal.id}`, 250, async () => {
-        await saveGoalDraft(goal);
-      });
-      autosizeTextarea(ta);
-    });
+  const val = ta.value || "";
+  // Clear individual fields
+  goal.content["health"] = "";
+  goal.content["nutrition"] = "";
+  goal.content["sleep"] = "";
+  // Store merged content in just one field
+  goal.content["health"] = val;
+  debounce(`goal_autosave_${goal.id}`, 250, async () => {
+    await saveGoalDraft(goal);
+  });
+  autosizeTextarea(ta);
+});
+
 
     field.appendChild(ta);
     goalsDetailWrap.appendChild(field);
