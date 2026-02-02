@@ -1,1049 +1,5752 @@
-<!-- index.html (replace your existing file with this) -->
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Offline Planner</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body data-theme="aurora" data-font="system">
-  <header class="topbar">
-    <div class="topbar__left">
-      <div class="brand">Offline Planner</div>
-      <div id="topbarMeta" class="topbar__meta">—</div>
-      <div id="syncStamp" class="topbar__meta">Last synced: —</div>
-    </div>
+// app.js
+(function () {
+  const $ = (id) => document.getElementById(id);
 
-    <div class="topbar__right">
-<button id="btnOpenBin" class="iconBtn" title="Trash">🗑</button>
-      <button id="btnTheme" class="iconBtn" title="Theme & font">🎨</button>
-      <button id="btnExportPDF" class="iconBtn" title="Export to PDF">⤓</button>
-      <button id="btnSettings" class="iconBtn" title="Settings">⚙</button>
-      <button id="btnAccount" class="iconBtn" title="Account">👤</button>
-      <button id="btnTabsMenu" class="iconBtn" title="Show/Hide tabs">⋯</button>
-      <button id="btnSyncNow" class="btn btn--ghost" type="button">Sync</button>
-    </div>
-  </header>
+ const views = ["dashboard", "todo", "journal", "actions", "habits", "meals", "notes", "goals"];
 
-  <nav id="tabsBar" class="tabs">
-    <button id="tab-dashboard" class="tab active" type="button">Dashboard</button>
-    <button id="tab-todo" class="tab" type="button">To-do</button>
-    <button id="tab-journal" class="tab" type="button">Journal</button>
-    <button id="tab-actions" class="tab" type="button">Projects</button>
-    <button id="tab-habits" class="tab" type="button">Habits</button>
-    <button id="tab-meals" class="tab" type="button">Meals</button>
-    <button id="tab-notes" class="tab" type="button">Notes</button>
-    <button id="tab-goals" class="tab" type="button">Goals</button>
-  </nav>
 
-  <main class="container">
-    <!-- DASHBOARD -->
-    <section id="view-dashboard" class="view">
-      <div class="card">
-        <div class="segmented">
-          <button id="dashPeriodWeek" class="segBtn" type="button" aria-pressed="true">Week</button>
-          <button id="dashPeriodMonth" class="segBtn" type="button" aria-pressed="false">Month</button>
-          <button id="dashPeriodYear" class="segBtn" type="button" aria-pressed="false">Year</button>
-        </div>
+  /* ---------------------------------------------------------
+     DOM references (match your new index.html)
+  --------------------------------------------------------- */
 
-        <div class="dashGrid">
-          <div class="metricCard">
-            <div class="metricTop">
-              <div class="metricTitle">To-do completion</div>
-              <div id="mTodoPeriodLabel" class="muted">This week</div>
-            </div>
-            <div class="metricValue" id="mTodoWeek">—</div>
-            <div class="metricSub muted">Today: <span id="mTodoToday">—</span></div>
-                      </div>
-          
-          <div class="metricCard" id="metricOpenTasks">
-  <div class="metricTop">
-    <div class="metricTitle">Open tasks today</div>
-    <div class="muted">Today</div>
-  </div>
-  <div class="metricValue" id="mOpenToday">—</div>
-</div>
+  // Topbar
+  const topbarMeta = $("topbarMeta");
+  const syncStamp = $("syncStamp");
+  const btnRefreshDashboard = $("btnRefreshDashboard");
+  const btnTheme = $("btnTheme");
+  const btnExportPDF = $("btnExportPDF");
+  const btnSettings = $("btnSettings");
+  const btnAccount = $("btnAccount");
+  const btnTabsMenu = $("btnTabsMenu");
+  const btnSyncNow = $("btnSyncNow");
 
-          <div class="metricCard" id="metricHabits">
-            <div class="metricTop">
-              <div class="metricTitle">Habit consistency</div>
-              <div id="mHabitPeriodLabel" class="muted">This week</div>
-            </div>
-            <div class="metricValue" id="mHabitWeek">—</div>
+  // Tabs menu
+  const tabsMenu = $("tabsMenu");
+  const tabsMenuBackdrop = $("tabsMenuBackdrop");
+  const tabsMenuItems = $("tabsMenuItems");
+  const btnSaveTabsMenu = $("btnSaveTabsMenu");
+
+  // Theme modal
+  const themeModal = $("themeModal");
+  const themeBackdrop = $("themeBackdrop");
+  const btnCloseTheme = $("btnCloseTheme");
+  const themeSelect = $("themeSelect");
+  const fontSelect = $("fontSelect");
+  const btnApplyTheme = $("btnApplyTheme");
+
+  // Settings modal (JSON import/export)
+  const settingsModal = $("settingsModal");
+  const settingsBackdrop = $("settingsBackdrop");
+  const btnCloseSettings = $("btnCloseSettings");
+  const btnExport = $("btnExport");
+  const btnImport = $("btnImport");
+  const importFile = $("importFile");
+  const exportArea = $("exportArea");
+
+  // Account modal (Firebase assumed by your prior code)
+  const accountModal = $("accountModal");
+  const accountBackdrop = $("accountBackdrop");
+  const btnCloseAccount = $("btnCloseAccount");
+  const btnSignIn = $("btnSignIn");
+  const btnSignUp = $("btnSignUp");
+  const btnSignOut = $("btnSignOut");
+  const authEmail = $("authEmail");
+  const authPassword = $("authPassword");
+  const authStatus = $("authStatus");
+
+  // Login keyboard behaviour (robust)
+function isEnterKey(e) {
+  return e.key === "Enter" || e.key === "NumpadEnter";
+}
+
+authEmail?.addEventListener("keydown", (e) => {
+  if (!isEnterKey(e)) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  authPassword?.focus();
+});
+
+authPassword?.addEventListener("keydown", (e) => {
+  if (!isEnterKey(e)) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  // Trigger the same logic as clicking "Sign in"
+  btnSignIn?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+});
+
+
+
+  // Export PDF modal
+  const exportPdfModal = $("exportPdfModal");
+  const exportPdfBackdrop = $("exportPdfBackdrop");
+  const btnCloseExportPdf = $("btnCloseExportPdf");
+  const expTodo = $("expTodo");
+  const expJournal = $("expJournal");
+  const expActions = $("expActions");
+  const expMeals = $("expMeals");
+  const expNotes = $("expNotes");
+    const expGoals = $("expGoals");
+  const btnRunPdfExport = $("btnRunPdfExport");
+
+  // Dashboard metrics
+  const mTodoToday = $("mTodoToday");
+  const mTodoWeek = $("mTodoWeek");
+  const mTodoPeriodLabel = $("mTodoPeriodLabel");
+  const mOpenToday = $("mOpenToday");
+  const mHabitWeek = $("mHabitWeek");
+  const mHabitPeriodLabel = $("mHabitPeriodLabel");
+  const dashPeriodWeek = $("dashPeriodWeek");
+  const dashPeriodMonth = $("dashPeriodMonth");
+  const dashPeriodYear = $("dashPeriodYear");
+  const mJournalRate = $("mJournalRate");
+const mJournalPeriodLabel = $("mJournalPeriodLabel");
+const avgMood = $("avgMood");
+const avgEnergy = $("avgEnergy");
+const avgStress = $("avgStress");
+
+
+  // To-do
+  const todoIndexCard = $("todoIndexCard");
+  const todoDetailCard = $("todoDetailCard");
+  const todoDateList = $("todoDateList");
+  const todoDetailDateLabel = $("todoDetailDateLabel");
+  const todoNewText = $("todoNewText");
+  const btnAddTodo = $("btnAddTodo");
+  const btnTodoBack = $("btnTodoBack");
+  const btnTodoNewList = $("btnTodoNewList");
+  const btnTodoToday = $("btnTodoToday");
+  const todoSort = $("todoSort");
+  const todoList = $("todoList");
+
+  // To-do new list modal
+  const todoNewListModal = $("todoNewListModal");
+  const todoNewListBackdrop = $("todoNewListBackdrop");
+  const btnCloseTodoNewList = $("btnCloseTodoNewList");
+  const todoNewListDate = $("todoNewListDate");
+  const btnCreateTodoList = $("btnCreateTodoList");
+
+  // Journal
+  const journalIndexCard = $("journalIndexCard");
+  const journalDetailCard = $("journalDetailCard");
+  const journalDateList = $("journalDateList");
+  const journalDetailDateLabel = $("journalDetailDateLabel");
+  const jGratitude = $("jGratitude");
+  const jObjectives = $("jObjectives");
+  const jReflections = $("jReflections");
+  const journalMood = $("journalMood");
+const journalEnergy = $("journalEnergy");
+const journalStress = $("journalStress");
+// -----------------------------
+// Reflections (tagged)
+// -----------------------------
+const journalReflections = $("journalReflections");
+const journalReflectionsList = $("journalReflectionsList");
+const journalReflectionsEmpty = $("journalReflectionsEmpty");
+const btnAddReflection = $("btnAddReflection");
+const reflectionTagChooser = $("reflectionTagChooser");
+const reflectionTagOptions = $("reflectionTagOptions");
+
+btnAddReflection?.addEventListener("click", (e) => {
+  e.stopPropagation();
+
+  if (!reflectionTagChooser || !reflectionTagOptions) return;
+
+  const used = new Set(Object.keys(currentReflections));
+  const available = REFLECTION_TAGS.filter(t => !used.has(t));
+
+  reflectionTagOptions.innerHTML = "";
+
+  if (!available.length) {
+    reflectionTagOptions.innerHTML =
+      `<div class="muted">All reflection areas already added.</div>`;
+  } else {
+    for (const tag of available) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pill";
+      btn.textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
+
+      btn.addEventListener("click", () => {
+        currentReflections[tag] = "";
+        reflectionTagChooser.classList.add("hidden");
+        renderReflectionSections();
+
+        debounce("journal_autosave", 300, autosaveJournal);
+
+        // Focus the new textarea
+        setTimeout(() => {
+          const fields = journalReflectionsList.querySelectorAll("textarea");
+          const last = fields[fields.length - 1];
+          last?.focus();
+        }, 0);
+      });
+
+      reflectionTagOptions.appendChild(btn);
+    }
+  }
+
+  reflectionTagChooser.classList.toggle("hidden");
+});
+
+document.addEventListener("click", () => {
+  reflectionTagChooser?.classList.add("hidden");
+});
+
+
+
+const REFLECTION_TAGS = [
+  "general",
+  "work",
+  "fitness",
+  "health",
+  "nutrition",
+  "social",
+  "relationships",
+  "sleep",
+  "money"
+];
+
+
+  const btnSaveJournal = $("btnSaveJournal"); // hidden now, but keep for compatibility
+  const btnJournalBack = $("btnJournalBack");
+  const btnJournalNewEntry = $("btnJournalNewEntry");
+  const journalSearchInput = $("journalSearchInput");
+  
+
+
+  // Journal new entry modal
+  const journalNewEntryModal = $("journalNewEntryModal");
+  const journalNewEntryBackdrop = $("journalNewEntryBackdrop");
+  const btnCloseJournalNewEntry = $("btnCloseJournalNewEntry");
+  const journalNewEntryDate = $("journalNewEntryDate");
+  const btnCreateJournalEntry = $("btnCreateJournalEntry");
+
+  // Projects / Actions
+  const btnActionsViewProjects = $("btnActionsViewProjects");
+  const btnActionsViewActions = $("btnActionsViewActions");
+  const btnAddProject = $("btnAddProject");
+  const btnAddAction = $("btnAddAction");
+  const actionsProjectsWrap = $("actionsProjectsWrap");
+  const actionsActionsWrap = $("actionsActionsWrap");
+  const projectList = $("projectList");
+  const archivedProjectList = $("archivedProjectList");
+const btnToggleArchivedProjects = $("btnToggleArchivedProjects");
+const btnToggleProjectNotes = $("btnToggleProjectNotes");
+const projectNotesWrap = $("projectNotesWrap");
+const btnToggleProjectActions = $("btnToggleProjectActions");
+const projectActionsWrap = $("projectActionsWrap");
+
+btnToggleProjectActions?.addEventListener("click", () => {
+  const hidden = projectActionsWrap.classList.toggle("hidden");
+  btnToggleProjectActions.textContent = hidden
+    ? "Show actions"
+    : "Hide actions";
+});
+
+
+btnToggleProjectNotes?.addEventListener("click", () => {
+  const hidden = projectNotesWrap.classList.toggle("hidden");
+  btnToggleProjectNotes.textContent = hidden
+    ? "Show project notes"
+    : "Hide project notes";
+
+  // 🔑 Resize AFTER becoming visible
+  if (!hidden) {
+    requestAnimationFrame(() => {
+      autosizeTextarea(projectNotes);
+    });
+  }
+});
+
+
+const btnToggleProjectNotesLinked = $("btnToggleProjectNotesLinked");
+const projectLinkedNotesWrap = $("projectLinkedNotesWrap");
+const projectLinkedNotesList = $("projectLinkedNotesList");
+
+btnToggleProjectNotesLinked?.addEventListener("click", () => {
+  const hidden = projectLinkedNotesWrap.classList.toggle("hidden");
+  btnToggleProjectNotesLinked.textContent = hidden
+    ? "Show linked notes"
+    : "Hide linked notes";
+
+  if (!hidden) refreshProjectLinkedNotes();
+});
+
+
+async function refreshProjectLinkedNotes() {
+  if (!selectedProjectId) return;
+
+  const notes = (await window.DB.getAll(window.DB.STORES.notes))
+    .filter(n => !n._deleted && n.projectId === selectedProjectId)
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+  projectLinkedNotesList.innerHTML = "";
+
+  if (!notes.length) {
+    projectLinkedNotesList.innerHTML =
+      `<li><div class="muted">No linked notes.</div></li>`;
+    return;
+  }
+
+  for (const n of notes) {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div class="list__left">
+        <strong>${escapeHtml(n.title || "Untitled")}</strong>
+      </div>
+      <div class="list__right">
+        <span class="muted">
+          ${n.updatedAt ? new Date(n.updatedAt).toLocaleDateString() : ""}
+        </span>
+      </div>
+    `;
+
+li.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  openNoteEditModal(n.id);
+});
+
+
+
+    projectLinkedNotesList.appendChild(li);
+  }
+}
+
+
+  // Project detail pane
+  const projectTitle = $("projectTitle");
+  const projectMeta = $("projectMeta");
+  const projectNotes = $("projectNotes");
+  const actionList2 = $("actionList2");
+  const actionSort2 = $("actionSort2");
+
+  // Project pane multi-filters (priority + status)
+  const actionFilterPriorityBtn2 = $("actionFilterPriorityBtn2");
+  const actionFilterPriorityPanel2 = $("actionFilterPriorityPanel2");
+  const actionFilterStatusBtn2 = $("actionFilterStatusBtn2");
+  const actionFilterStatusPanel2 = $("actionFilterStatusPanel2");
+
+  // All actions view
+  const actionList = $("actionList");
+  const actionSort = $("actionSort");
+  const btnRefreshActions = $("btnRefreshActions");
+
+  const actionFilterProjectBtn = $("actionFilterProjectBtn");
+  const actionFilterProjectPanel = $("actionFilterProjectPanel");
+  const actionFilterPriorityBtn = $("actionFilterPriorityBtn");
+  const actionFilterPriorityPanel = $("actionFilterPriorityPanel");
+  const actionFilterStatusBtn = $("actionFilterStatusBtn");
+  const actionFilterStatusPanel = $("actionFilterStatusPanel");
+
+  // Action modal
+  const actionModal = $("actionModal");
+  const noteModal = $("noteModal");
+const noteModalBackdrop = $("noteModalBackdrop");
+const btnCloseNoteModal = $("btnCloseNoteModal");
+const modalNoteTitle = $("modalNoteTitle");
+const modalNoteBody = $("modalNoteBody");
+
+  const actionBackdrop = $("actionBackdrop");
+  const btnCloseActionModal = $("btnCloseActionModal");
+  const modalActionTitle = $("modalActionTitle");
+  const modalActionProject = $("modalActionProject");
+  const modalActionDue = $("modalActionDue");
+  const modalActionPriority = $("modalActionPriority");
+  const modalActionStatus = $("modalActionStatus");
+  const modalActionNotes = $("modalActionNotes");
+  const btnSaveModalAction = $("btnSaveModalAction");
+  const btnDeleteAction = $("btnDeleteAction");
+  const actionModalTitle = $("actionModalTitle");
+
+  // Habits (daily view removed; weekly/monthly only)
+  const habitName = $("habitName");
+  const habitFreq = $("habitFreq");
+  const btnAddHabit = $("btnAddHabit");
+  const btnRefreshHabits = $("btnRefreshHabits");
+  const habitList = $("habitList");
+  const habitsCard = $("habitsCard");
+  const btnToggleHabits = $("btnToggleHabits");
+  const habitsListsWrap = $("habitsListsWrap");
+  const habitArchivedList = $("habitArchivedList");
+  const habitViewWeekly = $("habitViewWeekly");
+  const habitViewMonthly = $("habitViewMonthly");
+  const habitRefDate = $("habitRefDate");
+  const habitWeeklyWrap = $("habitWeeklyWrap");
+  const habitMonthlyWrap = $("habitMonthlyWrap");
+  const monthlyViewMode = $("monthlyViewMode");
+  const monthlyHabitSelectWrap = $("monthlyHabitSelectWrap");
+  const monthlyHabitSelect = $("monthlyHabitSelect");
+
+  monthlyHabitSelect?.addEventListener("change", () => {
+  refreshHabitTrack();
+});
+
+
+  // Meals
+  const mealViewDaily = $("mealViewDaily");
+  const mealViewWeekly = $("mealViewWeekly");
+  const mealNewName = $("mealNewName");
+  const btnAddMeal = $("btnAddMeal");
+  const mealRefDate = $("mealRefDate");
+  const btnRefreshMeals = $("btnRefreshMeals");
+  const mealList = $("mealList");
+  const mealsWrap = document.querySelector(".mealsWrap");
+  const btnToggleMeals = $("btnToggleMeals");
+
+  const mealDailyWrap = $("mealDailyWrap");
+  const mealWeeklyWrap = $("mealWeeklyWrap");
+
+  const mealPickerModal = $("mealPickerModal");
+const mealPickerBackdrop = $("mealPickerBackdrop");
+const btnCloseMealPicker = $("btnCloseMealPicker");
+const mealPickerList = $("mealPickerList");
+
+let mealPickerContext = null; // { dateISO, slot }
+
+btnCloseMealPicker?.addEventListener("click", () => {
+  hideModal(mealPickerModal);
+  mealPickerContext = null;
+});
+
+mealPickerBackdrop?.addEventListener("click", () => {
+  hideModal(mealPickerModal);
+  mealPickerContext = null;
+});
+
+
+
+  // Meal modal (edit notes)
+  const mealModal = $("mealModal");
+  const mealBackdrop = $("mealBackdrop");
+  const btnCloseMealModal = $("btnCloseMealModal");
+  const mealModalName = $("mealModalName");
+  const mealModalNotes = $("mealModalNotes");
+  const btnSaveMealModal = $("btnSaveMealModal");
+  const btnDeleteMealModal = $("btnDeleteMealModal");
+  let editingMealId = null;
+
+  // Notes (iOS-style: index -> detail)
+  const notesIndexCard = $("notesIndexCard");
+  const notesDetailCard = $("notesDetailCard");
+  const btnNewNote = $("btnNewNote");
+  const notesSearchInput = $("notesSearchInput");
+  const notesList = $("notesList");
+  const noteCollectionSelect = $("noteCollectionSelect");
+const noteProjectSelect = $("noteProjectSelect");
+const notesProjectFilter = $("notesProjectFilter");
+  const collectionList = $("collectionList");
+const btnAddCollection = $("btnAddCollection");
+const notesProjectFilterBtn = $("notesProjectFilterBtn");
+const notesCollectionFilterBtn = $("notesCollectionFilterBtn");
+const notesCollectionFilterPanel = $("notesCollectionFilterPanel");
+
+
+
+
+
+
+
+
+// Notes collections drawer (mobile)
+const btnNotesOpenCollections = $("btnNotesOpenCollections");
+const notesDrawer = $("notesCollectionsDrawer");
+const notesDrawerBackdrop = $("notesCollectionsBackdrop");
+const btnCloseNotesDrawer = $("btnCloseNotesDrawer");
+const collectionListMobile = $("collectionListMobile");
+const btnAddCollectionMobile = $("btnAddCollectionMobile");
+
+function openNotesDrawer() {
+  notesDrawer?.classList.remove("hidden");
+}
+
+function closeNotesDrawer() {
+  notesDrawer?.classList.add("hidden");
+}
+
+btnNotesOpenCollections?.addEventListener("click", openNotesDrawer);
+btnCloseNotesDrawer?.addEventListener("click", closeNotesDrawer);
+notesDrawerBackdrop?.addEventListener("click", closeNotesDrawer);
+
+// Mirror desktop collections into mobile drawer
+async function refreshCollectionsMobile() {
+  if (!collectionListMobile) return;
+  collectionListMobile.innerHTML = collectionList.innerHTML;
+}
+
+btnAddCollectionMobile?.addEventListener("click", () => {
+  closeNotesDrawer();
+  btnAddCollection.click();
+});
+
+
+
+
+
+const btnToggleArchivedCollections = $("btnToggleArchivedCollections");
+
+btnToggleArchivedCollections?.addEventListener("click", () => {
+  showArchivedCollections = !showArchivedCollections;
+  btnToggleArchivedCollections.textContent = showArchivedCollections
+    ? "Hide archived collections"
+    : "Show archived collections";
+  refreshCollections();
+});
+
+const collectionModal = $("collectionModal");
+const collectionBackdrop = $("collectionBackdrop");
+const btnCloseCollectionModal = $("btnCloseCollectionModal");
+const btnSaveCollection = $("btnSaveCollection");
+const collectionNameInput = $("collectionNameInput");
+const collectionModalTitle = $("collectionModalTitle");
+
+const btnArchiveCollection = $("btnArchiveCollection");
+const btnDeleteCollection = $("btnDeleteCollection");
+
+
+let editingCollectionId = null;
+
+  const btnNotesBack = $("btnNotesBack");
+  const projectModal = $("projectModal");
+const projectBackdrop = $("projectBackdrop");
+const btnCloseProjectModal = $("btnCloseProjectModal");
+const btnSaveProject = $("btnSaveProject");
+const projectNameInput = $("projectNameInput");
+const projectNotesInput = $("projectNotesInput");
+
+// ===============================
+// Project modal handlers
+// ===============================
+
+// Open project modal
+btnAddProject?.addEventListener("click", () => {
+  projectNameInput.value = "";
+  projectNotesInput.value = "";
+  showModal(projectModal);
+
+  requestAnimationFrame(() => {
+    projectNameInput.focus();
+  });
+});
+
+
+// Close project modal
+btnCloseProjectModal?.addEventListener("click", () => {
+  hideModal(projectModal);
+});
+
+projectBackdrop?.addEventListener("click", () => {
+  hideModal(projectModal);
+});
+
+// Save project (with notes)
+btnSaveProject?.addEventListener("click", async () => {
+  const name = (projectNameInput.value || "").trim();
+  if (!name) return;
+
+  const p = await window.DB.ensureProject(name);
+
+  await window.DB.updateProject(p.id, {
+    notes: projectNotesInput.value || ""
+  });
+
+  hideModal(projectModal);
+  selectedProjectId = p.id;
+  await refreshProjectsAndActions();
+});
+
+
+  const noteTitle = $("noteTitle");
+  const noteBody = $("noteBody");
+  const noteCreated = $("noteCreated");
+  const noteUpdated = $("noteUpdated");
+  const btnSaveNote = $("btnSaveNote"); // hidden now, but keep
+  const btnDeleteNote = $("btnDeleteNote");
+
+  /* ---------------------------------------------------------
+     State
+  --------------------------------------------------------- */
+
+  let dashboardPeriod = "Week";
+  let mealsListHidden = false;
+  let habitsHidden = false;
+  let currentReflections = {};
+
+
+  // Rollover modal state
+let rolloverView = "days"; // "days" | "items"
+let rolloverSelectedDate = null;
+
+
+
+  let currentTodoDate = null;
+  let currentJournalDate = null;
+  let journalSearchText = "";
+  let notesSearchText = "";
+
+
+
+  let actionsMode = "projects";
+  let selectedProjectId = null;
+  let archivedProjectsVisible = false;
+
+
+  let editingActionId = null;
+  let currentNoteId = null;
+  let selectedCollectionId = null;
+  let showArchivedCollections = false;
+  let selectedNotesProjectId = null;
+  let notesMode = "all"; // "all" or "collection"
+
+
+
+  // Debounce timers for autosave
+  const debounceTimers = new Map();
+
+  // Multi-select filter state
+  const filterState = {
+    actionsProject: new Set(["__ALL__"]),
+    actionsPriority: new Set(["Low", "Medium", "High"]),
+    actionsStatus: new Set(["Open", "In Progress", "Completed"]),
+    projectPriority: new Set(["Low", "Medium", "High"]),
+    projectStatus: new Set(["Open", "In Progress", "Completed"]),
+    notesProjects: new Set(["__ALL__"]),
+notesCollections: new Set(["__ALL__"])
+  };
+
+  /* ---------------------------------------------------------
+     Utilities
+  --------------------------------------------------------- */
+
+  async function syncDueActionsToTodayTodos(todayISO) {
+  // Load all actions and todos
+  const actions = (await window.DB.getAll(window.DB.STORES.actions))
+    .filter(a => !a._deleted && a.status !== "Completed");
+
+  const todos = await window.DB.getAll(window.DB.STORES.todos);
+
+  // Index existing todos by actionId for today
+  const todosTodayByAction = new Set(
+    todos
+      .filter(t =>
+        !t._deleted &&
+        t.date === todayISO &&
+        t.actionId
+      )
+      .map(t => t.actionId)
+  );
+
+  for (const a of actions) {
+    if (!a.dueDate) continue;
+    if (a.dueDate !== todayISO) continue;
+
+    // Skip if already exists
+    if (todosTodayByAction.has(a.id)) continue;
+
+    // Ensure today list exists
+    await window.DB.ensureTodoList(todayISO);
+
+    // Create linked to-do
+    await window.DB.upsertTodo({
+      date: todayISO,
+      text: a.title,
+      status: "Open",
+      priority: a.priority || "Medium",
+      notes: a.notes || "",
+      dueDate: a.dueDate || "",
+      projectId: a.projectId || null,
+      actionId: a.id
+    });
+  }
+}
+
+
+  /* ---------------------------------------------------------
+   Trash / Bin
+--------------------------------------------------------- */
+
+const btnOpenBin = $("btnOpenBin");
+const binModal = $("binModal");
+const binBackdrop = $("binBackdrop");
+const btnCloseBin = $("btnCloseBin");
+const binList = $("binList");
+
+const BIN_RETENTION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+function showBin() {
+  renderBin();
+  showModal(binModal);
+}
+
+btnOpenBin?.addEventListener("click", showBin);
+btnCloseBin?.addEventListener("click", () => hideModal(binModal));
+binBackdrop?.addEventListener("click", () => hideModal(binModal));
+
+async function renderBin() {
+  if (!binList) return;
+
+  const now = Date.now();
+  binList.innerHTML = "";
+
+  const STORES = window.DB.STORES;
+  const labelFor = {
+    notes: "Note",
+    journal: "Journal",
+    projects: "Project",
+    actions: "Action",
+    habits: "Habit",
+    meals: "Meal",
+    goals: "Goal"
+  };
+
+  for (const [storeKey, storeName] of Object.entries(STORES)) {
+    const items = await window.DB.getAll(storeName);
+
+    for (const item of items) {
+      if (!item._deleted || !item.deletedAt) continue;
+
+      const age = now - item.deletedAt;
+      
+
+      const row = document.createElement("div");
+      row.className = "menuItem";
+      row.style.display = "grid";
+      row.style.gridTemplateColumns = "140px 1fr 100px";
+      row.style.alignItems = "center";
+      row.style.gap = "8px";
+
+      const type = document.createElement("div");
+      type.textContent = labelFor[storeKey] || storeKey;
+
+      const label = document.createElement("div");
+
+const main =
+  item.title ||
+  item.name ||
+  item.text ||
+  item.date ||
+  item.period ||
+  "—";
+
+const deletedAt = item.deletedAt
+  ? new Date(item.deletedAt).toLocaleString()
+  : "—";
+
+label.innerHTML = `
+  <div><strong>${escapeHtml(main)}</strong></div>
+  <div class="muted">Deleted: ${escapeHtml(deletedAt)}</div>
+`;
+
+
+      const actions = document.createElement("div");
+actions.style.display = "flex";
+actions.style.gap = "6px";
+
+// Restore button
+const restore = document.createElement("button");
+restore.className = "btn btn--ghost";
+restore.textContent = "Restore";
+
+restore.addEventListener("click", async () => {
+  await window.DB.put(storeName, {
+    ...item,
+    _deleted: false,
+    deletedAt: null,
+    updatedAt: Date.now()
+  });
+
+  try {
+    await window.Sync?.pushItem?.(storeKey, {
+      ...item,
+      _deleted: false,
+      deletedAt: null,
+      updatedAt: Date.now()
+    });
+  } catch {}
+
+  renderBin();
+  refreshAfterRestore(storeKey);
+});
+
+// Permanent delete button
+const del = document.createElement("button");
+del.className = "iconBtn";
+del.title = "Delete permanently";
+del.textContent = "🗑";
+
+del.addEventListener("click", async () => {
+  const ok = await confirmInApp({
+    title: "Delete permanently",
+    message: "This item will be permanently deleted and cannot be restored."
+  });
+
+  if (!ok) return;
+
+  // 🔑 Force item to be eligible for immediate purge
+  const expired = {
+    ...item,
+    _deleted: true,
+    deletedAt: 0,          // 🔥 older than any retention window
+    updatedAt: Date.now()
+  };
+
+ await window.DB.put(storeName, expired);
+
+// 🔑 Purge using NORMAL retention cutoff
+const cutoff = Date.now() - BIN_RETENTION_MS;
+await window.DB.purgeDeletedOlderThan(cutoff);
+
+await renderBin();
+
+});
+
+
+
+
+
+
+actions.appendChild(restore);
+actions.appendChild(del);
+
+row.appendChild(type);
+row.appendChild(label);
+row.appendChild(actions);
+binList.appendChild(row);
+
+    }
+  }
+
+  if (!binList.children.length) {
+    binList.innerHTML = `<div class="muted">No recently deleted items.</div>`;
+  }
+}
+
+function refreshAfterRestore(storeKey) {
+  if (storeKey === "notes") refreshNotes();
+  if (storeKey === "journal") refreshJournalIndex();
+  if (storeKey === "projects" || storeKey === "actions") refreshProjectsAndActions();
+  if (storeKey === "habits") refreshHabits();
+  if (storeKey === "meals") refreshMeals();
+  if (storeKey === "goals") refreshGoals();
+}
+
+
+  async function openNoteEditModal(noteId) {
+  currentNoteId = noteId;
+
+  const n = await window.DB.getOne(window.DB.STORES.notes, noteId);
+  if (!n || n._deleted) return;
+
+  modalNoteTitle.value = n.title || "";
+modalNoteBody.value = n.body || "";
+
+showModal(noteModal);
+
+requestAnimationFrame(() => {
+  autosizeTextarea(modalNoteBody);
+  modalNoteTitle.focus();
+});
+
+}
+
+
+
+
+async function autosaveNoteFromModal() {
+  if (!currentNoteId) return;
+
+  const title = (modalNoteTitle.value || "").trim();
+  const body = (modalNoteBody.value || "").trim();
+
+  if (!title && !body) return;
+
+  const updatedAt = Date.now();
+
+  await window.DB.updateNote(currentNoteId, {
+    title,
+    body,
+    updatedAt
+  });
+}
+
+btnCloseNoteModal?.addEventListener("click", () => {
+  hideModal(noteModal);
+  currentNoteId = null;
+});
+
+noteModalBackdrop?.addEventListener("click", () => {
+  hideModal(noteModal);
+  currentNoteId = null;
+});
+
+  function showModal(modal) { modal?.classList.remove("hidden"); }
+
+
+
+ 
+
+  async function confirmInApp({ title = "Confirm", message = "" }) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("confirmModal");
+    const titleEl = document.getElementById("confirmTitle");
+    const msgEl = document.getElementById("confirmMessage");
+    const btnOk = document.getElementById("btnConfirmOk");
+    const btnCancel = document.getElementById("btnConfirmCancel");
+    const btnClose = document.getElementById("btnCloseConfirm");
+    const backdrop = document.getElementById("confirmBackdrop");
+
+    titleEl.textContent = title;
+    msgEl.textContent = message;
+
+    const cleanup = (result) => {
+      hideModal(modal);
+      btnOk.onclick = null;
+      btnCancel.onclick = null;
+      btnClose.onclick = null;
+      backdrop.onclick = null;
+      resolve(result);
+    };
+
+    btnOk.onclick = () => cleanup(true);
+    btnCancel.onclick = () => cleanup(false);
+    btnClose.onclick = () => cleanup(false);
+    backdrop.onclick = () => cleanup(false);
+
+    showModal(modal);
+  });
+}
+
+function isTouchDevice() {
+  return (
+    "ontouchstart" in window ||
+    navigator.maxTouchPoints > 0
+  );
+}
+
+
+  function hideModal(modal) { modal?.classList.add("hidden"); }
+
+  function escapeHtml(s) {
+    return String(s || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+  }
+
+  let dbReady = null;
+
+async function ensureDbReady() {
+  if (!dbReady) {
+    dbReady = window.DB.init();
+  }
+  await dbReady;
+}
+
+
+  function highlightMatch(text, query) {
+  if (!query) return escapeHtml(text || "");
+  const safe = escapeHtml(text || "");
+  const re = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "ig");
+  return safe.replace(re, `<mark>$1</mark>`);
+}
+
+
+  function pad2(n) { return String(n).padStart(2, "0"); }
+
+  function todayStrISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+
+  async function maybeRunDailyTodoRollover() {
+  const today = todayStrISO();
+  const last = await window.DB.getSetting("ui.lastTodoRollover", null);
+
+  if (last === today) return;
+
+  // 1. Roll over failed todos (existing logic)
+  if (typeof window.DB.rolloverTodosToToday === "function") {
+    await window.DB.rolloverTodosToToday(today);
+  }
+
+  // 2. 🔑 NEW: auto-add due actions to today
+  await syncDueActionsToTodayTodos(today);
+
+  // 3. Mark as processed for today
+  await window.DB.setSetting("ui.lastTodoRollover", today);
+
+  // 4. Refresh UI
+  refreshTodoIndex();
+  refreshTodoDetail();
+  refreshDashboard();
+}
+
+
+
+  function parseISO(yyyyMmDd) {
+    const [y, m, d] = (yyyyMmDd || "").split("-").map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+  }
+
+  function isoToDDMMYYYY(iso) {
+    if (!iso) return "—";
+    const d = parseISO(iso);
+    return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+  }
+
+  function ddmmyyyyForDate(d) {
+    return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+  }
+
+  function weekdayName(d) {
+    return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getDay()];
+  }
+
+  function startOfWeek(date) {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 Sun..6 Sat
+    const diff = (day === 0 ? -6 : 1 - day);
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function startOfMonth(date) {
+    const d = new Date(date.getFullYear(), date.getMonth(), 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function startOfYear(date) {
+    const d = new Date(date.getFullYear(), 0, 1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function dateToISO(d) {
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  }
+
+  function daysBetweenInclusive(a, b) {
+    const da = new Date(a); da.setHours(0, 0, 0, 0);
+    const db = new Date(b); db.setHours(0, 0, 0, 0);
+    const diff = Math.round((db - da) / (24 * 3600 * 1000));
+    return diff + 1;
+  }
+
+  function fmtPct(n) {
+    if (!isFinite(n)) return "—";
+    return `${Math.round(n * 100)}%`;
+  }
+
+  function prioRank(p) {
+    if (p === "High") return 3;
+    if (p === "Medium") return 2;
+    return 1;
+  }
+
+  function cycleStatus(s) {
+    if (s === "Open") return "In Progress";
+    if (s === "In Progress") return "Completed";
+    return "Open";
+  }
+
+  function cyclePriority(p) {
+    if (p === "Low") return "Medium";
+    if (p === "Medium") return "High";
+    return "Low";
+  }
+
+  function statusClass(s) {
+    if (s === "In Progress") return "status-inprogress";
+    if (s === "Completed") return "status-completed";
+    return "status-open";
+  }
+
+  function prioClass(p) {
+    if (p === "High") return "prio-high";
+    if (p === "Medium") return "prio-medium";
+    return "prio-low";
+  }
+
+  function setPressed(btn, on) { btn?.setAttribute("aria-pressed", on ? "true" : "false"); }
+
+  function autosizeTextarea(el) {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 800) + "px";
+  }
+
+  function autosizeRichText(el) {
+  if (!el) return;
+
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+
+  function bindRichTextToolbar(container) {
+  const toolbar = container.previousElementSibling;
+  if (!toolbar || !toolbar.classList.contains("richToolbar")) return;
+
+  toolbar.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const cmd = btn.getAttribute("data-cmd");
+      document.execCommand(cmd, false, null);
+      container.focus();
+    });
+  });
+}
+
+
+  function wireAutosize() {
+    document.querySelectorAll("textarea.autosize").forEach((ta) => {
+      autosizeTextarea(ta);
+      ta.addEventListener("input", () => autosizeTextarea(ta));
+    });
+  }
+
+  function debounce(key, ms, fn) {
+    if (debounceTimers.has(key)) clearTimeout(debounceTimers.get(key));
+    const t = setTimeout(fn, ms);
+    debounceTimers.set(key, t);
+  }
+
+  function updateSyncStamp(ts, label = "Last synced") {
+    if (!syncStamp) return;
+    if (!ts) { syncStamp.textContent = `${label}: —`; return; }
+    syncStamp.textContent = `${label}: ${new Date(ts).toLocaleString()}`;
+  }
+
+  /* ---------------------------------------------------------
+     Multi-select filter helper (Excel-like)
+  --------------------------------------------------------- */
+
+  function buildMultiFilter({ button, panel, title, options, stateSet, onApply }) {
+    if (!button || !panel) return;
+
+    function renderLabel() {
+      const sel = Array.from(stateSet);
+      if (!sel.length) return `${title}: None`;
+      if (sel.length === options.length) return `${title}: All`;
+      return `${title}: ${sel.join(", ")}`;
+    }
+
+    function close() {
+      panel.classList.add("hidden");
+    }
+
+    function open() {
+      panel.classList.remove("hidden");
+      panel.focus?.();
+    }
+
+    function toggle() {
+      panel.classList.contains("hidden") ? open() : close();
+    }
+
+    function renderPanel() {
+      panel.innerHTML = "";
+      const h = document.createElement("div");
+      h.className = "fpTitle";
+      h.textContent = title;
+      panel.appendChild(h);
+
+      for (const opt of options) {
+        const row = document.createElement("div");
+        row.className = "fpItem";
+
+        const lab = document.createElement("label");
+        lab.textContent = opt;
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = stateSet.has(opt);
+
+        cb.addEventListener("change", () => {
+          if (cb.checked) stateSet.add(opt);
+          else stateSet.delete(opt);
+        });
+
+        row.appendChild(lab);
+        row.appendChild(cb);
+        panel.appendChild(row);
+      }
+
+      const actions = document.createElement("div");
+      actions.className = "fpActions";
+
+      const btnClear = document.createElement("button");
+      btnClear.type = "button";
+      btnClear.className = "btn btn--ghost";
+      btnClear.textContent = "Clear";
+      btnClear.addEventListener("click", () => {
+        stateSet.clear();
+        renderPanel();
+      });
+
+      const btnAll = document.createElement("button");
+      btnAll.type = "button";
+      btnAll.className = "btn btn--ghost";
+      btnAll.textContent = "All";
+      btnAll.addEventListener("click", () => {
+        stateSet.clear();
+        options.forEach(o => stateSet.add(o));
+        renderPanel();
+      });
+
+      const btnApply = document.createElement("button");
+      btnApply.type = "button";
+      btnApply.className = "btn btn--primary";
+      btnApply.textContent = "Apply";
+      btnApply.addEventListener("click", () => {
+        // Guard: if none selected, treat as all (more usable)
+        if (!stateSet.size) options.forEach(o => stateSet.add(o));
+        button.textContent = renderLabel();
+        close();
+        onApply?.();
+      });
+
+      actions.appendChild(btnClear);
+      actions.appendChild(btnAll);
+      actions.appendChild(btnApply);
+      panel.appendChild(actions);
+
+      button.textContent = renderLabel();
+    }
+
+    button.addEventListener("click", () => {
+      renderPanel();
+      toggle();
+    });
+
+    panel.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") close();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        // Apply on Enter
+        if (!stateSet.size) options.forEach(o => stateSet.add(o));
+        button.textContent = renderLabel();
+        close();
+        onApply?.();
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (panel.classList.contains("hidden")) return;
+      if (panel.contains(e.target) || button.contains(e.target)) return;
+      close();
+    });
+
+    // Initial label
+    button.textContent = renderLabel();
+  }
+
+  /* ---------------------------------------------------------
+     Topbar / Auth / Sync
+  --------------------------------------------------------- */
+
+  function setAuthStatus(text) { if (authStatus) authStatus.textContent = text; }
+
+  function updateTopbar() {
+    const online = navigator.onLine ? "Online" : "Offline";
+    const user = window.fbAuth && window.fbAuth.currentUser;
+    const who = user ? user.email : "Not signed in";
+    if (topbarMeta) topbarMeta.textContent = `${online} • ${who}`;
+    if (btnSyncNow) btnSyncNow.disabled = !navigator.onLine || !user;
+  }
+
+  btnAccount?.addEventListener("click", () => showModal(accountModal));
+  btnCloseAccount?.addEventListener("click", () => hideModal(accountModal));
+  accountBackdrop?.addEventListener("click", () => hideModal(accountModal));
+
+  btnSignIn?.addEventListener("click", async () => {
+    if (!window.fbAuth) { alert("Firebase not initialised."); return; }
+    try {
+      await window.fbAuth.signInWithEmailAndPassword(authEmail.value.trim(), authPassword.value);
+    } catch (e) {
+      alert(e.message || String(e));
+    }
+  });
+
+  btnSignUp?.addEventListener("click", async () => {
+    if (!window.fbAuth) { alert("Firebase not initialised."); return; }
+    try {
+      await window.fbAuth.createUserWithEmailAndPassword(authEmail.value.trim(), authPassword.value);
+    } catch (e) {
+      alert(e.message || String(e));
+    }
+  });
+
+  btnSignOut?.addEventListener("click", async () => {
+  if (!window.fbAuth) return;
+
+  // 1. Sign out from Firebase
+  await window.fbAuth.signOut();
+
+  // 2. Immediately clear all local data
+  await ensureDbReady();
+  await window.DB.importAll({}, { overwrite: true });
+
+  // 3. Clear sync timestamps
+  await window.DB.setSetting("sync.lastPullAt", 0);
+  await window.DB.setSetting("sync.lastAt", 0);
+
+  // 4. Reset UI state
+  setAuthStatus("Not signed in.");
+  updateTopbar();
+
+  // 5. Return user to dashboard (empty state)
+  setTab("dashboard");
+});
+
+
+  if (window.fbAuth) {
+  window.fbAuth.onAuthStateChanged(async () => {
+    updateTopbar();
+
+    const user = window.fbAuth.currentUser;
+
+    if (user) {
+      setAuthStatus(`Signed in as ${user.email}`);
+
+      hideModal(accountModal);
+
+      // --------------------------------------------------
+// 🔒 SAFE LOGIN CLEANUP
+// --------------------------------------------------
+// Remove ONLY data created while logged out (scratch data)
+// Preserve all authenticated offline data
+// --------------------------------------------------
+// 🔒 SAFE LOGIN CLEANUP (wipe logged-out test data)
+if (window.Sync && typeof window.Sync.discardUnauthenticatedLocalData === "function") {
+  try {
+    await window.Sync.discardUnauthenticatedLocalData(user.uid);
+  } catch (e) {
+    console.warn("Failed to discard unauthenticated local data:", e);
+  }
+}
+
+// 🔑 BOOTSTRAP: first sync after login
+// - Push any offline edits first
+// - Full pull only if we have never pulled before
+// - Otherwise do deltas
+if (window.Sync && typeof window.Sync.initialSync === "function") {
+  try {
+    const lastPull = await window.DB.getSetting("sync.lastPullAt", 0);
+    if (!lastPull && typeof window.Sync.fullPullAllFromCloud === "function") {
+      await window.Sync.fullPullAllFromCloud();
+    } else {
+      await window.Sync.initialSync();
+    }
+  } catch (e) {
+    console.warn("Initial sync failed:", e);
+  }
+}
+
+
+
+// 🔄 Refresh UI after local DB is populated
+refreshDashboard();
+refreshTodoIndex();
+refreshJournalIndex();
+refreshProjectsAndActions();
+refreshHabits();
+refreshMeals();
+refreshNotes();
+
+
+      // Run daily to-do rollover AFTER sync (so cloud does not overwrite it)
+const today = todayStrISO();
+const lastRollover = await window.DB.getSetting("ui.lastTodoRollover", null);
+
+if (
+  lastRollover !== today &&
+  typeof window.DB.rolloverTodosToToday === "function"
+) {
+  await window.DB.rolloverTodosToToday(today);
+  await window.DB.setSetting("ui.lastTodoRollover", today);
+}
+
+    } else {
+  // User just logged out → wipe all local data immediately
+
+  setAuthStatus("Not signed in.");
+
+  // 1. Clear all local IndexedDB data
+  await ensureDbReady();
+  await window.DB.importAll({}, { overwrite: true });
+
+  // 2. Clear sync timestamps
+  await window.DB.setSetting("sync.lastPullAt", 0);
+  await window.DB.setSetting("sync.lastAt", 0);
+
+  // 3. Reset all UI views to empty state
+  refreshDashboard();
+  refreshTodoIndex();
+  refreshJournalIndex();
+  refreshProjectsAndActions();
+  refreshHabits();
+  refreshMeals();
+  refreshNotes();
+
+  // 4. Return to dashboard
+  setTab("dashboard");
+}
+
+  });
+}
+
+
+
+   window.addEventListener("online", updateTopbar);
+  window.addEventListener("offline", updateTopbar);
+
+  // Manual sync
+  btnSyncNow?.addEventListener("click", async () => {
+    try {
+      btnSyncNow.disabled = true;
+      btnSyncNow.textContent = "Syncing…";
+      if (window.syncNow) await window.syncNow(() => {});
+      const ts = Date.now();
+      await window.DB.setSetting("sync.lastAt", ts);
+      updateSyncStamp(ts, "Last synced");
+      btnSyncNow.textContent = "Sync";
+      updateTopbar();
+      refreshDashboard();
+    } catch (e) {
+      btnSyncNow.textContent = "Sync";
+      updateTopbar();
+      alert(e.message || String(e));
+    }
+  });
+
+  // Autosync disabled: idle usage must generate zero Firestore traffic
+function startAutoSync() {
+  // Intentionally empty
+}
+
+
+  /* ---------------------------------------------------------
+     Tabs visibility (Show/Hide tabs) - fix
+  --------------------------------------------------------- */
+
+  const tabLabels = {
+    dashboard: "Dashboard",
+    todo: "To-do",
+    journal: "Journal",
+    actions: "Projects",
+    habits: "Habits",
+    meals: "Meals",
+    notes: "Notes", 
+    goals: "Goals"
+  };
+
+  async function applyTabVisibility() {
+    const hidden = (await window.DB.getSetting("ui.hiddenTabs", [])) || [];
+    const hiddenSet = new Set(hidden);
+
+    // Hide dashboard metrics when tabs are hidden
+const metricMap = {
+  journal: "metricJournal",
+  habits: "metricHabits"
+};
+
+for (const [tab, metricId] of Object.entries(metricMap)) {
+  const el = document.getElementById(metricId);
+  if (el) {
+    el.classList.toggle("hidden", hiddenSet.has(tab));
+  }
+}
+
+
+    for (const v of views) {
+      const btn = $("tab-" + v);
+      if (!btn) continue;
+      btn.classList.toggle("hidden", hiddenSet.has(v));
+    }
+
+    const currentActive = document.querySelector(".tab.active");
+    if (currentActive && currentActive.classList.contains("hidden")) {
+      const firstVisible = views.find(v => !$("tab-" + v)?.classList.contains("hidden"));
+      if (firstVisible) setTab(firstVisible);
+    }
+  }
+
+  function showMenu(menu) { menu?.classList.remove("hidden"); }
+  function hideMenu(menu) { menu?.classList.add("hidden"); }
+
+  async function openTabsMenu() {
+    tabsMenuItems.innerHTML = "";
+    const hidden = new Set(((await window.DB.getSetting("ui.hiddenTabs", [])) || []).slice());
+
+    for (const v of views) {
+      const row = document.createElement("div");
+      row.className = "menuItem";
+
+      const lab = document.createElement("label");
+      lab.textContent = tabLabels[v] || v;
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !hidden.has(v);
+      cb.addEventListener("change", () => {
+        if (cb.checked) hidden.delete(v);
+        else hidden.add(v);
+      });
+
+      row.appendChild(lab);
+      row.appendChild(cb);
+      tabsMenuItems.appendChild(row);
+    }
+
+    btnSaveTabsMenu.onclick = async () => {
+      await window.DB.setSetting("ui.hiddenTabs", Array.from(hidden));
+      hideMenu(tabsMenu);
+      await applyTabVisibility();
+    };
+
+    showMenu(tabsMenu);
+  }
+
+  btnTabsMenu?.addEventListener("click", openTabsMenu);
+  tabsMenuBackdrop?.addEventListener("click", () => hideMenu(tabsMenu));
+
+  /* ---------------------------------------------------------
+     Theme & font
+  --------------------------------------------------------- */
+
+  function applyThemeAndFont(theme, font) {
+    document.body.setAttribute("data-theme", theme);
+    document.body.setAttribute("data-font", font);
+  }
+
+  btnTheme?.addEventListener("click", async () => {
+    const theme = (await window.DB.getSetting("ui.theme", "aurora")) || "aurora";
+    const font = (await window.DB.getSetting("ui.font", "system")) || "system";
+    themeSelect.value = theme;
+    fontSelect.value = font;
+    showModal(themeModal);
+  });
+
+  themeBackdrop?.addEventListener("click", () => hideModal(themeModal));
+  btnCloseTheme?.addEventListener("click", () => hideModal(themeModal));
+  btnApplyTheme?.addEventListener("click", async () => {
+    const theme = themeSelect.value || "aurora";
+    const font = fontSelect.value || "system";
+    await window.DB.setSetting("ui.theme", theme);
+    await window.DB.setSetting("ui.font", font);
+    applyThemeAndFont(theme, font);
+    hideModal(themeModal);
+  });
+
+  /* ---------------------------------------------------------
+     Settings modal (JSON import/export)
+  --------------------------------------------------------- */
+
+  btnSettings?.addEventListener("click", () => showModal(settingsModal));
+  btnCloseSettings?.addEventListener("click", () => hideModal(settingsModal));
+  settingsBackdrop?.addEventListener("click", () => hideModal(settingsModal));
+
+  btnExport?.addEventListener("click", async () => {
+    const dump = await window.DB.exportAll();
+    exportArea.value = JSON.stringify(dump, null, 2);
+  });
+
+  btnImport?.addEventListener("click", async () => {
+    const file = importFile.files && importFile.files[0];
+    if (!file) { alert("Select a JSON file first."); return; }
+    const ok = confirm("This will overwrite your local database. Continue?");
+    if (!ok) return;
+    const txt = await file.text();
+    const data = JSON.parse(txt);
+    await window.DB.importAll(data, { overwrite: true });
+    alert("Imported.");
+    refreshDashboard();
+    refreshTodoIndex();
+    refreshJournalIndex();
+    refreshProjectsAndActions();
+    refreshHabits();
+    refreshMeals();
+    refreshNotes();
+  });
+
+    /* ---------------------------------------------------------
+     Goals
+  --------------------------------------------------------- */
+
+  const goalsViewLong = $("goalsViewLong");
+  const goalsViewAnnual = $("goalsViewAnnual");
+  const goalsViewMonthly = $("goalsViewMonthly");
+  const btnAddGoalPeriod = $("btnAddGoalPeriod");
+  const goalsIndexWrap = $("goalsIndexWrap");
+  const goalsDetailWrap = $("goalsDetailWrap");
+
+  let goalsMode = "long_term"; // "long_term" | "annual" | "monthly"
+  let currentGoalId = null;
+  let monthlyYearFilter = null;
+
+  function setSegPressed(btn, on) {
+    if (!btn) return;
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+
+  function monthLabel(yyyyMm) {
+    if (!yyyyMm || yyyyMm.length !== 7) return yyyyMm || "—";
+    const [y, m] = yyyyMm.split("-");
+    const dt = new Date(Number(y), Number(m) - 1, 1);
+    const name = dt.toLocaleString(undefined, { month: "long" });
+    return `${name} ${y}`;
+  }
+
+  async function getAllGoals() {
+    return (await window.DB.getAll(window.DB.STORES.goals)).filter(g => g && !g._deleted);
+  }
+
+  function showGoalsIndex() {
+    goalsIndexWrap?.classList.remove("hidden");
+    goalsDetailWrap?.classList.add("hidden");
+  }
+
+  function showGoalsDetail() {
+    goalsIndexWrap?.classList.add("hidden");
+    goalsDetailWrap?.classList.remove("hidden");
+  }
+
+  function setGoalsMode(mode) {
+    goalsMode = mode;
+    currentGoalId = null;
+
+    setSegPressed(goalsViewLong, mode === "long_term");
+    setSegPressed(goalsViewAnnual, mode === "annual");
+    setSegPressed(goalsViewMonthly, mode === "monthly");
+
+    if (btnAddGoalPeriod) {
+      btnAddGoalPeriod.style.display = (mode === "long_term") ? "none" : "";
+    }
+
+    showGoalsIndex();
+    refreshGoals();
+  }
+
+  goalsViewLong?.addEventListener("click", () => setGoalsMode("long_term"));
+  goalsViewAnnual?.addEventListener("click", () => setGoalsMode("annual"));
+  goalsViewMonthly?.addEventListener("click", () => setGoalsMode("monthly"));
+
+  async function saveGoalDraft(goal) {
+  if (!goal || !goal.id) return null;
+
+  const existing = await window.DB.getOne(
+    window.DB.STORES.goals,
+    goal.id
+  );
+
+  const content = goal.content || {};
+
+  // --------------------------------------------------
+  // 🔒 SAFETY GUARD:
+  // Do not overwrite an existing goal with empty content
+  // --------------------------------------------------
+
+  const hasAnyContent =
+    Object.values(content).some(
+      v => typeof v === "string" && v.trim().length > 0
+    );
+
+  if (existing && !hasAnyContent) {
+    return existing;
+  }
+
+  const rec = await window.DB.upsertGoal({
+    id: goal.id,
+    type: goal.type,
+    period: goal.period,
+    content
+  });
+
+  try {
+    await window.Sync?.pushItem?.("goals", rec);
+  } catch {
+    /* ignore sync errors */
+  }
+
+  return rec;
+}
+
+
+  function renderGoalsEditor(goal, opts = {}) {
+    const { showBack } = opts;
+
+    if (!goalsDetailWrap) return;
+
+    goalsDetailWrap.innerHTML = "";
+
+    const header = document.createElement("div");
+    header.className = "cardHeader";
+
+    if (showBack) {
+      const back = document.createElement("button");
+      back.className = "btn btn--ghost";
+      back.type = "button";
+      back.textContent = "Back";
+      back.addEventListener("click", () => {
+        currentGoalId = null;
+        showGoalsIndex();
+        refreshGoals();
+      });
+      header.appendChild(back);
+    }
+
+    const title = document.createElement("div");
+    title.className = "cardTitle";
+
+    if (goal.type === "long_term") title.textContent = "Long-term";
+    if (goal.type === "annual") title.textContent = `Annual ${goal.period || "—"}`;
+    if (goal.type === "monthly") title.textContent = monthLabel(goal.period);
+
+    header.appendChild(title);
+
+    const actions = document.createElement("div");
+    actions.className = "cardActions";
+    header.appendChild(actions);
+
+        // Delete button (annual / monthly only)
+    if (goal.type !== "long_term") {
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "btn btn--ghost";
+      delBtn.textContent = "×";
+      delBtn.title = "Delete goal";
+
+      delBtn.addEventListener("click", async () => {
+        const ok = await confirmInApp({
+          title: "Delete goal",
+          message: "Delete this goal? This cannot be undone."
+        });
+        if (!ok) return;
+
+        await window.DB.deleteGoal(goal.id);
+
+        try {
+          await window.Sync?.pushItem?.("goals", {
+            ...goal,
+            _deleted: true,
+            updatedAt: Date.now()
+          });
+        } catch { /* ignore */ }
+
+        currentGoalId = null;
+        showGoalsIndex();
+        refreshGoals();
+      });
+
+      actions.appendChild(delBtn);
+    }
+
+
+    goalsDetailWrap.appendChild(header);
+
+    const content = goal.content || (goal.content = {});
+
+    // --------------------------------------------------
+// Goals editor: merge Health / Nutrition / Sleep
+// --------------------------------------------------
+
+// --------------------------------------------------
+// Goals editor: merge Health / Nutrition / Sleep
+// and place it just after Fitness
+// --------------------------------------------------
+
+const mergedHealthTags = ["health", "nutrition", "sleep"];
+
+for (const tag of REFLECTION_TAGS) {
+
+  // Insert merged field immediately after Fitness
+  if (tag === "fitness") {
+    const field = document.createElement("div");
+    field.className = "field";
+
+    const lab = document.createElement("label");
+    lab.textContent = "Health / Nutrition / Sleep";
+    field.appendChild(lab);
+
+    const ta = document.createElement("textarea");
+    ta.className = "textarea autosize";
+    ta.rows = 6;
+
+    ta.value = mergedHealthTags
+      .map(t => goal.content?.[t]?.trim())
+      .filter(Boolean)
+      .join("\n\n");
+
+    ta.addEventListener("input", () => {
+      const val = ta.value || "";
+      for (const t of mergedHealthTags) {
+        goal.content[t] = val;
+      }
+      debounce(`goal_autosave_${goal.id}`, 250, async () => {
+        await saveGoalDraft(goal);
+      });
+      autosizeTextarea(ta);
+    });
+
+    field.appendChild(ta);
+    goalsDetailWrap.appendChild(field);
+    autosizeTextarea(ta);
+  }
+
+  // Skip original health / nutrition / sleep fields
+  if (mergedHealthTags.includes(tag)) {
+    continue;
+  }
+
+  // Render all other tags normally
+  const field = document.createElement("div");
+  field.className = "field";
+
+  const lab = document.createElement("label");
+  lab.textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
+  field.appendChild(lab);
+
+  const ta = document.createElement("textarea");
+  ta.className = "textarea autosize";
+  ta.rows = 6;
+  ta.value = goal.content[tag] || "";
+
+  ta.addEventListener("input", () => {
+    goal.content[tag] = ta.value || "";
+    debounce(`goal_autosave_${goal.id}`, 250, async () => {
+      await saveGoalDraft(goal);
+    });
+    autosizeTextarea(ta);
+  });
+
+  field.appendChild(ta);
+  goalsDetailWrap.appendChild(field);
+  autosizeTextarea(ta);
+}
+
+
+  }
+
+  async function openGoal(id) {
+    const goals = await getAllGoals();
+    const g = goals.find(x => x.id === id);
+    if (!g) return;
+
+    currentGoalId = id;
+    showGoalsDetail();
+    renderGoalsEditor(g, { showBack: goalsMode !== "long_term" });
+  }
+
+  async function ensureLongTermGoal() {
+    const goals = await getAllGoals();
+    let g = goals.find(x => x.type === "long_term");
+    if (!g) {
+      g = await window.DB.upsertGoal({
+        id: "long_term",
+        type: "long_term",
+        period: null,
+        content: {}
+      });
+      try { await window.Sync?.pushItem?.("goals", g); } catch { /* ignore */ }
+    }
+    return g;
+  }
+
+  async function addAnnualGoal() {
+    const goals = await getAllGoals();
+    const existingYears = new Set(goals.filter(g => g.type === "annual" && g.period).map(g => g.period));
+    let y = String(new Date().getFullYear());
+    while (existingYears.has(y)) y = String(Number(y) + 1);
+
+    const id = `annual_${y}`;
+    const rec = await window.DB.upsertGoal({
+      id,
+      type: "annual",
+      period: y,
+      content: {}
+    });
+    try { await window.Sync?.pushItem?.("goals", rec); } catch { /* ignore */ }
+
+    await refreshGoals();
+    await openGoal(id);
+
+    requestAnimationFrame(() => {
+      const first = goalsDetailWrap?.querySelector("textarea");
+      first?.focus();
+    });
+  }
+
+  async function addMonthlyGoal() {
+    const goals = await getAllGoals();
+    const existing = new Set(goals.filter(g => g.type === "monthly" && g.period).map(g => g.period));
+
+    const d = new Date();
+    let y = d.getFullYear();
+    let m = d.getMonth() + 1;
+
+    function fmt(yy, mm) {
+      return `${yy}-${String(mm).padStart(2, "0")}`;
+    }
+
+    let p = fmt(y, m);
+    while (existing.has(p)) {
+      m += 1;
+      if (m === 13) { m = 1; y += 1; }
+      p = fmt(y, m);
+    }
+
+    const id = `monthly_${p}`;
+    const rec = await window.DB.upsertGoal({
+      id,
+      type: "monthly",
+      period: p,
+      content: {}
+    });
+    try { await window.Sync?.pushItem?.("goals", rec); } catch { /* ignore */ }
+
+    if (!monthlyYearFilter) monthlyYearFilter = String(y);
+
+    await refreshGoals();
+    await openGoal(id);
+
+    requestAnimationFrame(() => {
+      const first = goalsDetailWrap?.querySelector("textarea");
+      first?.focus();
+    });
+  }
+
+  const onAddGoal = async (e) => {
+  e.preventDefault();
+  if (goalsMode === "annual") return addAnnualGoal();
+  if (goalsMode === "monthly") return addMonthlyGoal();
+};
+
+btnAddGoalPeriod?.addEventListener("click", onAddGoal);
+btnAddGoalPeriod?.addEventListener("touchstart", onAddGoal, { passive: false });
+
+
+  async function refreshGoals() {
+    if (!goalsIndexWrap || !goalsDetailWrap) return;
+
+    if (currentGoalId) {
+      await openGoal(currentGoalId);
+      return;
+    }
+
+    showGoalsIndex();
+    goalsIndexWrap.innerHTML = "";
+
+    const goals = await getAllGoals();
+
+    if (goalsMode === "long_term") {
+      const g = await ensureLongTermGoal();
+      currentGoalId = g.id;
+      showGoalsDetail();
+      goalsDetailWrap.classList.remove("hidden");
+      renderGoalsEditor(g, { showBack: false });
+      return;
+    }
+
+    if (goalsMode === "annual") {
+      const list = goals
+        .filter(g => g.type === "annual" && g.period)
+        .sort((a, b) => (b.period || "").localeCompare(a.period || ""));
+
+      if (!list.length) {
+        goalsIndexWrap.innerHTML = `<div class="muted">No annual goals yet. Press + to add a year.</div>`;
+        return;
+      }
+
+      const stack = document.createElement("div");
+      stack.className = "stack";
+
+      for (const g of list) {
+        const row = document.createElement("div");
+        row.className = "menuItem";
+        row.style.cursor = "pointer";
+
+        row.innerHTML = `
+          <div>
+            <strong>${g.period}</strong>
+            <div class="muted">Updated: ${g.updatedAt ? new Date(g.updatedAt).toLocaleString() : "—"}</div>
           </div>
-  <div class="metricCard" id="metricJournal">
-            <div class="metricTop">
-    <div class="metricTitle">Journal completion</div>
-    <div id="mJournalPeriodLabel" class="muted">This week</div>
-  </div>
-  <div class="metricValue" id="mJournalRate">—</div>
-  <div class="metricSub muted">Days with entries</div>
-</div>
-<div class="metricCircles">
-  <div class="metricCircle" id="circleMood">
-    <div class="circleLabel">Mood</div>
-    <div class="circleValue" id="avgMood">—</div>
-  </div>
+        `;
 
-  <div class="metricCircle" id="circleEnergy">
-    <div class="circleLabel">Energy</div>
-    <div class="circleValue" id="avgEnergy">—</div>
-  </div>
+        row.addEventListener("click", () => openGoal(g.id));
+        stack.appendChild(row);
+      }
 
-  <div class="metricCircle" id="circleStress">
-    <div class="circleLabel">Stress</div>
-    <div class="circleValue" id="avgStress">—</div>
+      goalsIndexWrap.appendChild(stack);
+      return;
+    }
+
+    if (goalsMode === "monthly") {
+      const allMonthly = goals
+        .filter(g => g.type === "monthly" && g.period)
+        .sort((a, b) => (b.period || "").localeCompare(a.period || ""));
+
+      const years = Array.from(new Set(allMonthly.map(g => (g.period || "").slice(0, 4)).filter(Boolean)))
+        .sort((a, b) => b.localeCompare(a));
+
+      if (!monthlyYearFilter) monthlyYearFilter = years[0] || String(new Date().getFullYear());
+      if (years.length && !years.includes(monthlyYearFilter)) monthlyYearFilter = years[0];
+
+      const filterRow = document.createElement("div");
+      filterRow.className = "field";
+
+      const lab = document.createElement("label");
+      lab.textContent = "Year";
+      filterRow.appendChild(lab);
+
+      const sel = document.createElement("select");
+      sel.className = "input";
+
+      if (!years.length) {
+        const opt = document.createElement("option");
+        opt.value = String(new Date().getFullYear());
+        opt.textContent = opt.value;
+        sel.appendChild(opt);
+      } else {
+        for (const y of years) {
+          const opt = document.createElement("option");
+          opt.value = y;
+          opt.textContent = y;
+          sel.appendChild(opt);
+        }
+      }
+
+      sel.value = monthlyYearFilter;
+      sel.addEventListener("change", () => {
+        monthlyYearFilter = sel.value || monthlyYearFilter;
+        refreshGoals();
+      });
+
+      filterRow.appendChild(sel);
+      goalsIndexWrap.appendChild(filterRow);
+
+      const list = allMonthly.filter(g => (g.period || "").startsWith(monthlyYearFilter + "-"));
+
+      if (!list.length) {
+        const empty = document.createElement("div");
+        empty.className = "muted";
+        empty.textContent = "No monthly goals for this year. Press + to add a month.";
+        goalsIndexWrap.appendChild(empty);
+        return;
+      }
+
+      const stack = document.createElement("div");
+      stack.className = "stack";
+
+      for (const g of list) {
+        const row = document.createElement("div");
+        row.className = "menuItem";
+        row.style.cursor = "pointer";
+
+        row.innerHTML = `
+          <div>
+            <strong>${monthLabel(g.period)}</strong>
+            <div class="muted">Updated: ${g.updatedAt ? new Date(g.updatedAt).toLocaleString() : "—"}</div>
+          </div>
+        `;
+
+        row.addEventListener("click", () => openGoal(g.id));
+        stack.appendChild(row);
+      }
+
+      goalsIndexWrap.appendChild(stack);
+      return;
+    }
+  }
+
+  // Expose for tab switching
+  window.refreshGoals = refreshGoals;
+
+
+  /* ---------------------------------------------------------
+     Export PDF (extended to include Notes)
+  --------------------------------------------------------- */
+
+  btnExportPDF?.addEventListener("click", () => showModal(exportPdfModal));
+  exportPdfBackdrop?.addEventListener("click", () => hideModal(exportPdfModal));
+  btnCloseExportPdf?.addEventListener("click", () => hideModal(exportPdfModal));
+
+  btnRunPdfExport?.addEventListener("click", async () => {
+    hideModal(exportPdfModal);
+
+    const dump = await window.DB.exportAll();
+    const todos = (dump.todos || []).filter(x => !x._deleted).sort((a, b) => (a.date || "").localeCompare(b.date || "") || (a.createdAt || 0) - (b.createdAt || 0));
+    const journal = (dump.journal || []).filter(x => !x._deleted).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    const actions = (dump.actions || []).filter(x => !x._deleted).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    const projects = (dump.projects || []).filter(x => !x._deleted).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    const meals = (dump.meals || []).filter(x => !x._deleted).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    const mealPlans = (dump.mealPlans || []).filter(x => !x._deleted);
+    const notes = (dump.notes || []).filter(x => !x._deleted).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    const goals = (dump.goals || []).filter(x => !x._deleted);
+
+
+    const projName = (id) => (projects.find(p => p.id === id)?.name) || "—";
+    const esc = (s) => String(s || "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
+    const w = window.open("", "_blank");
+    if (!w) { alert("Popup blocked. Allow popups then try again."); return; }
+
+    const groupByDate = (arr, key) => {
+      const m = new Map();
+      for (const x of arr) {
+        const d = x[key] || "";
+        if (!m.has(d)) m.set(d, []);
+        m.get(d).push(x);
+      }
+      return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    };
+
+    let html = `
+      <html><head><meta charset="utf-8">
+      <title>Offline Planner Export</title>
+      <style>
+        body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif;color:#111827;margin:28px}
+        h1{margin:0 0 10px 0}
+        h2{margin:18px 0 8px 0}
+        .muted{color:#6b7280;font-size:12px}
+        .box{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:10px 0}
+        ul{padding-left:18px;margin:8px 0}
+        li{margin:6px 0}
+        .pb{page-break-before:always}
+      </style>
+      </head><body>
+      <h1>Offline Planner Export</h1>
+      <div class="muted">Generated: ${new Date().toLocaleString()}</div>
+    `;
+
+    if (expTodo.checked) {
+      const todoGroups = groupByDate(todos, "date");
+      html += `<h2>To-dos</h2>`;
+      if (!todoGroups.length) html += `<div class="box muted">No to-dos.</div>`;
+      for (const [date, items] of todoGroups) {
+        html += `<div class="box"><strong>${esc(isoToDDMMYYYY(date))}</strong><ul>`;
+        for (const t of items) {
+          html += `<li>
+            <strong>${esc(t.text)}</strong>
+            <div class="muted">Status: ${esc(t.status)} • Priority: ${esc(t.priority)} • Due: ${esc(t.dueDate ? isoToDDMMYYYY(t.dueDate) : "—")} • Project: ${esc(projName(t.projectId))}</div>
+            ${t.notes ? `<div>${esc(t.notes).replaceAll("\n","<br>")}</div>` : ``}
+          </li>`;
+        }
+        html += `</ul></div>`;
+      }
+    }
+
+    if (expActions.checked) {
+      html += `<h2 class="pb">Projects & actions</h2>`;
+      if (!projects.length) html += `<div class="box muted">No projects.</div>`;
+      else {
+        html += `<div class="box"><strong>Projects</strong><ul>`;
+        for (const p of projects) html += `<li>${esc(p.name)}</li>`;
+        html += `</ul></div>`;
+      }
+
+      if (!actions.length) html += `<div class="box muted">No actions.</div>`;
+      else {
+        for (const a of actions) {
+          html += `<div class="box">
+            <div><strong>${esc(a.title)}</strong></div>
+            <div class="muted">Project: ${esc(projName(a.projectId))} • Priority: ${esc(a.priority)} • Due: ${esc(a.dueDate ? isoToDDMMYYYY(a.dueDate) : "—")}</div>
+            <div class="muted">Status: ${esc(a.status)}</div>
+            ${a.notes ? `<div style="margin-top:8px">${esc(a.notes).replaceAll("\n","<br>")}</div>` : ``}
+          </div>`;
+        }
+      }
+    }
+
+    if (expJournal.checked) {
+      html += `<h2 class="pb">Journal</h2>`;
+      if (!journal.length) html += `<div class="box muted">No journal entries.</div>`;
+      else {
+        let first = true;
+        for (const j of journal) {
+          html += `${first ? `` : `<div class="pb"></div>`}`;
+          first = false;
+          html += `
+            <h2>${esc(isoToDDMMYYYY(j.date))}</h2>
+            <div class="box"><div><strong>Gratitude</strong></div><div>${esc(j.gratitude).replaceAll("\n","<br>")}</div></div>
+            <div class="box"><div><strong>Objectives</strong></div><div>${esc(j.objectives).replaceAll("\n","<br>")}</div></div>
+            <div class="box"><div><strong>Reflections</strong></div><div>${esc(j.reflections).replaceAll("\n","<br>")}</div></div>
+          `;
+        }
+      }
+    }
+
+    if (expMeals.checked) {
+      html += `<h2 class="pb">Meals</h2>`;
+      if (!meals.length) html += `<div class="box muted">No meals.</div>`;
+      else {
+        html += `<div class="box"><strong>Meals list</strong><ul>`;
+        for (const m of meals) html += `<li>${esc(m.name)}</li>`;
+        html += `</ul></div>`;
+      }
+
+      const byDate = groupByDate(mealPlans, "date");
+      if (!byDate.length) html += `<div class="box muted">No meal plans.</div>`;
+      for (const [date, items] of byDate) {
+        const slotName = (s) => ({ breakfast: "Breakfast", lunch: "Lunch", snack: "Snack", dinner: "Dinner" }[s] || s);
+        const mealName = (id) => meals.find(m => m.id === id)?.name || "—";
+        html += `<div class="box"><strong>${esc(isoToDDMMYYYY(date))}</strong><ul>`;
+        for (const it of items) html += `<li>${esc(slotName(it.slot))}: ${esc(mealName(it.mealId))}</li>`;
+        html += `</ul></div>`;
+      }
+    }
+
+    if (expNotes.checked) {
+      html += `<h2 class="pb">Notes</h2>`;
+      if (!notes.length) html += `<div class="box muted">No notes.</div>`;
+      else {
+        for (const n of notes) {
+          html += `<div class="box">
+            <div><strong>${esc(n.title || "Untitled")}</strong></div>
+            <div class="muted">Edited: ${esc(n.updatedAt ? new Date(n.updatedAt).toLocaleString() : "—")}</div>
+            <div style="margin-top:8px">${esc(n.body || "").replaceAll("\n","<br>")}</div>
+          </div>`;
+        }
+      }
+    }
+if (expGoals.checked) {
+  html += `<h2 class="pb">Goals</h2>`;
+
+  const byType = t => goals.filter(g => g.type === t);
+
+  const renderGoal = g =>
+    Object.entries(g.content || {})
+      .map(([k,v]) => `<div><strong>${esc(k)}</strong>: ${esc(v).replaceAll("\n","<br>")}</div>`)
+      .join("");
+
+  const long = byType("long_term")[0];
+  if (long) {
+    html += `<div class="box"><strong>Long-term</strong>${renderGoal(long)}</div>`;
+  }
+
+  const annual = byType("annual").sort((a,b)=>b.period.localeCompare(a.period));
+  for (const g of annual) {
+    html += `<div class="box"><strong>Annual ${esc(g.period)}</strong>${renderGoal(g)}</div>`;
+  }
+
+  const monthly = byType("monthly").sort((a,b)=>b.period.localeCompare(a.period));
+  for (const g of monthly) {
+    html += `<div class="box"><strong>${esc(g.period)}</strong>${renderGoal(g)}</div>`;
+  }
+}
+
+    if (expGoals && expGoals.checked) {
+      html += `<h2 class="pb">Goals</h2>`;
+
+      const esc2 = (s) => String(s || "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
+      const renderContent = (g) => {
+        const c = g.content || {};
+        let out = "";
+        for (const tag of REFLECTION_TAGS) {
+          const v = (c[tag] || "").trim();
+          out += `<div><strong>${esc2(tag.charAt(0).toUpperCase() + tag.slice(1))}</strong>: ${esc2(v).replaceAll("\n","<br>")}</div>`;
+        }
+        return out;
+      };
+
+      const long = goals.find(g => g.type === "long_term");
+      html += `<div class="box"><strong>Long-term</strong>${long ? renderContent(long) : `<div class="muted">—</div>`}</div>`;
+
+      const annual = goals.filter(g => g.type === "annual" && g.period).sort((a, b) => (b.period || "").localeCompare(a.period || ""));
+      html += `<div class="box"><strong>Annual</strong></div>`;
+      if (!annual.length) html += `<div class="box muted">No annual goals.</div>`;
+      for (const g of annual) {
+        html += `<div class="box"><strong>${esc2(g.period)}</strong>${renderContent(g)}</div>`;
+      }
+
+      const monthly = goals.filter(g => g.type === "monthly" && g.period).sort((a, b) => (b.period || "").localeCompare(a.period || ""));
+      html += `<div class="box"><strong>Monthly</strong></div>`;
+      if (!monthly.length) html += `<div class="box muted">No monthly goals.</div>`;
+      for (const g of monthly) {
+        const title = monthLabel(g.period);
+        html += `<div class="box"><strong>${esc2(title)}</strong>${renderContent(g)}</div>`;
+      }
+    }
+
+
+
+    html += `</body></html>`;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    w.print();
+  });
+
+  /* ---------------------------------------------------------
+     Tabs
+  --------------------------------------------------------- */
+
+  function setTab(tab) {
+    for (const t of views) {
+      const v = $("view-" + t);
+      const btn = $("tab-" + t);
+      if (!v || !btn) continue;
+      if (t === tab) {
+        v.classList.remove("hidden");
+        btn.classList.add("active");
+      } else {
+        v.classList.add("hidden");
+        btn.classList.remove("active");
+      }
+    }
+
+    if (tab === "dashboard") refreshDashboard();
+    if (tab === "todo") refreshTodoIndex();
+    if (tab === "journal") {
+  // Force journal list rebuild after the tab switch completes
+  setTimeout(() => {
+    refreshJournalIndex();
+  }, 0);
+}
+
+       if (tab === "actions") refreshProjectsAndActions();
+    if (tab === "habits") { refreshHabits(); refreshHabitTrack(); }
+    if (tab === "meals") refreshMeals();
+    if (tab === "notes") {
+      refreshCollections();
+      refreshNotesProjectFilter();
+      refreshNotes();
+    }
+    if (tab === "goals") {
+  if (typeof window.refreshGoals === "function") {
+    requestAnimationFrame(() => {
+      window.refreshGoals();
+    });
+  }
+}
+
+  }
+
+
+  function initTabs() {
+    for (const t of views) {
+      const btn = $("tab-" + t);
+      if (!btn) continue;
+      btn.addEventListener("click", () => setTab(t));
+    }
+  }
+
+  // Service worker (optional)
+  async function initServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    try { await navigator.serviceWorker.register("service-worker.js"); } catch { /* ignore */ }
+  }
+
+  async function openRolloverModal(date = null) {
+  const modal = document.getElementById("rolloverModal");
+  const content = document.getElementById("rolloverContent");
+
+  if (!modal || !content) return;
+
+  const todos = await window.DB.getAll(window.DB.STORES.todos);
+
+  const failed = todos.filter(
+    t =>
+      !t._deleted &&
+      Array.isArray(t.rolloverFailures) &&
+      t.rolloverFailures.length > 0
+  );
+
+  // Build map: date -> todos
+  const byDate = {};
+  for (const t of failed) {
+    for (const d of t.rolloverFailures) {
+      if (!byDate[d]) byDate[d] = [];
+      byDate[d].push(t);
+    }
+  }
+
+  content.innerHTML = "";
+
+  // -----------------------------
+  // VIEW 1: LIST OF DAYS
+  // -----------------------------
+  if (!date) {
+    rolloverView = "days";
+    rolloverSelectedDate = null;
+
+    const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+
+    if (!dates.length) {
+      content.innerHTML = `<div class="muted">No missed to-dos.</div>`;
+    } else {
+      for (const d of dates) {
+        const row = document.createElement("div");
+        row.className = "menuItem";
+        row.style.cursor = "pointer";
+
+        row.innerHTML = `
+          <div>
+            <strong>${isoToDDMMYYYY(d)}</strong>
+            <div class="muted">${byDate[d].length} missed item(s)</div>
+          </div>
+        `;
+
+        row.addEventListener("click", () => {
+          openRolloverModal(d);
+        });
+
+        content.appendChild(row);
+      }
+    }
+
+    modal.classList.remove("hidden");
+    return;
+  }
+
+  // -----------------------------
+  // VIEW 2: ITEMS FOR ONE DAY
+  // -----------------------------
+  rolloverView = "items";
+  rolloverSelectedDate = date;
+
+  const header = document.createElement("div");
+  header.className = "cardHeader";
+
+  header.innerHTML = `
+    <div class="cardTitle">${isoToDDMMYYYY(date)}</div>
+    <button class="btn btn--ghost" type="button">Back</button>
+  `;
+
+  header.querySelector("button").addEventListener("click", () => {
+    openRolloverModal();
+  });
+
+  content.appendChild(header);
+
+  const list = document.createElement("ul");
+  list.className = "list";
+
+  for (const t of byDate[date]) {
+    const li = document.createElement("li");
+    li.style.cursor = "pointer";
+
+    li.innerHTML = `
+      <div class="list__left">
+        <div><strong>${escapeHtml(t.text)}</strong></div>
+        <div class="muted">Currently on: ${isoToDDMMYYYY(t.date)}</div>
+      </div>
+    `;
+
+    li.addEventListener("click", async () => {
+      // Close modal
+      modal.classList.add("hidden");
+
+      // Navigate to the to-do list where the item currently lives
+      await window.DB.ensureTodoList(t.date);
+      setTab("todo");
+      showTodoDetail(t.date);
+    });
+
+    list.appendChild(li);
+  }
+
+  content.appendChild(list);
+  modal.classList.remove("hidden");
+}
+
+
+// Open rollover analysis when clicking to-do completion metric
+document.addEventListener("click", (e) => {
+  const card = e.target.closest(".metricCard");
+  if (!card) return;
+
+  // Only react to the To-do completion card
+  const value = card.querySelector("#mTodoWeek");
+  if (!value) return;
+
+  openRolloverModal();
+});
+
+document.getElementById("btnCloseRollover")?.addEventListener("click", () => {
+  document.getElementById("rolloverModal")?.classList.add("hidden");
+});
+
+document.getElementById("rolloverBackdrop")?.addEventListener("click", () => {
+  document.getElementById("rolloverModal")?.classList.add("hidden");
+});
+
+
+
+
+
+
+  /* ---------------------------------------------------------
+     Dashboard
+  --------------------------------------------------------- */
+
+  function setDashboardPeriod(p) {
+    dashboardPeriod = p;
+    setPressed(dashPeriodWeek, p === "Week");
+    setPressed(dashPeriodMonth, p === "Month");
+    setPressed(dashPeriodYear, p === "Year");
+    refreshDashboard();
+  }
+  function bindDashboardPeriod(btn, period) {
+  if (!btn) return;
+
+  const handler = (e) => {
+    e.preventDefault();
+    setDashboardPeriod(period);
+  };
+
+  btn.addEventListener("click", handler);
+  btn.addEventListener("touchstart", handler, { passive: false });
+}
+
+bindDashboardPeriod(dashPeriodWeek, "Week");
+bindDashboardPeriod(dashPeriodMonth, "Month");
+bindDashboardPeriod(dashPeriodYear, "Year");
+
+
+  async function refreshDashboard() {
+    const dump = await window.DB.exportAll();
+    const journals = (dump.journal || []).filter(j => !j._deleted);
+    const todos = (dump.todos || []).filter(x => !x._deleted);
+    const habits = (dump.habits || []).filter(x => !x._deleted && !x.archived);
+    const completions = (dump.habitCompletions || []).filter(x => !x._deleted);
+
+    const nowD = new Date();
+    function colourForValue(pct) {
+  if (!isFinite(pct)) return "#9ca3af"; // grey when no data
+
+  // Clamp between 0 and 1
+  const t = Math.max(0, Math.min(1, pct));
+
+  // Red → Orange → Green
+  const r = t < 0.5
+    ? 220
+    : Math.round(220 - (t - 0.5) * 2 * 186);
+
+  const g = t < 0.5
+    ? Math.round(38 + t * 2 * 165)
+    : 165;
+
+  const b = 38;
+
+  return `rgb(${r}, ${g}, ${b})`;
+}
+    const today = todayStrISO();
+
+    function todoCompletionForDates(dates) {
+  let total = 0;
+  let done = 0;
+
+  for (const t of todos) {
+    if (t._deleted) continue;
+
+    // Completed on the day
+    if (dates.includes(t.date)) {
+      total++;
+      if (t.status === "Completed") done++;
+    }
+
+    
+
+        // Failed on the day (rolled over)
+    if (Array.isArray(t.rolloverFailures)) {
+      for (const d of t.rolloverFailures) {
+        if (dates.includes(d)) {
+          total++;
+        }
+      }
+    }
+  }
+
+  return total ? done / total : NaN;
+}
+
+
+    let periodLabel = "This week";
+    let dates = [];
+    if (dashboardPeriod === "Week") {
+      const startW = startOfWeek(nowD);
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(startW);
+        d.setDate(d.getDate() + i);
+        dates.push(dateToISO(d));
+      }
+      periodLabel = "This week";
+    } else if (dashboardPeriod === "Month") {
+      const start = startOfMonth(nowD);
+      const end = new Date(nowD.getFullYear(), nowD.getMonth() + 1, 0);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) dates.push(dateToISO(d));
+      periodLabel = "This month";
+    } else {
+      const start = startOfYear(nowD);
+      const end = new Date(nowD.getFullYear(), 11, 31);
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) dates.push(dateToISO(d));
+      periodLabel = "This year";
+    }
+
+    if (mTodoToday) mTodoToday.textContent = fmtPct(todoCompletionForDates([today]));
+    if (mTodoWeek) mTodoWeek.textContent = fmtPct(todoCompletionForDates(dates));
+    if (mTodoPeriodLabel) mTodoPeriodLabel.textContent = periodLabel;
+
+    if (mJournalRate) {
+  mJournalRate.textContent = fmtPct(journalCompletionForDates(dates));
+}
+
+function journalCompletionForDates(dates) {
+  let completedDays = 0;
+
+  for (const d of dates) {
+    const entry = journals.find(j => j.date === d);
+    if (!entry) continue;
+
+    const hasText =
+      (entry.gratitude && entry.gratitude.trim().length > 0) ||
+      (entry.objectives && entry.objectives.trim().length > 0) ||
+      (
+  entry.reflections &&
+  typeof entry.reflections === "object" &&
+  Object.values(entry.reflections).some(
+    v => typeof v === "string" && v.trim().length > 0
+  )
+)
+
+
+    if (hasText) completedDays++;
+  }
+
+  return dates.length ? completedDays / dates.length : NaN;
+}
+
+
+
+function avgForField(field) {
+  const values = journals
+    .filter(j => dates.includes(j.date))
+    .map(j => j[field])
+    .filter(v => typeof v === "number");
+
+  if (!values.length) return NaN;
+
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+
+if (mJournalPeriodLabel) {
+  mJournalPeriodLabel.textContent = periodLabel;
+}
+
+
+    
+if (mJournalPeriodLabel) {
+  mJournalPeriodLabel.textContent = periodLabel;
+}
+
+
+
+
+
+    const openToday = todos.filter(t => t.date === today && t.status !== "Completed").length;
+    if (mOpenToday) mOpenToday.textContent = String(openToday);
+
+    function periodStatsHabits(startDate) {
+      const start = startDate;
+      const days = daysBetweenInclusive(start, nowD);
+      const denom = habits.length * days;
+      if (!denom) return NaN;
+      const startStr = dateToISO(start);
+      const endStr = dateToISO(nowD);
+      const ticks = completions.filter(c => c.date >= startStr && c.date <= endStr).length;
+      return ticks / denom;
+    }
+
+    let habitStart = startOfWeek(nowD);
+    let habitLabel = "This week";
+    if (dashboardPeriod === "Month") { habitStart = startOfMonth(nowD); habitLabel = "This month"; }
+    if (dashboardPeriod === "Year") { habitStart = startOfYear(nowD); habitLabel = "This year"; }
+
+    if (mHabitWeek) mHabitWeek.textContent = fmtPct(periodStatsHabits(habitStart));
+    if (mHabitPeriodLabel) mHabitPeriodLabel.textContent = habitLabel;
+
+    // 🔑 Force repaint on period change
+mHabitWeek.offsetHeight;
+
+
+    const moodPct = avgForField("mood") / 10;
+const energyPct = avgForField("energy") / 10;
+const stressPct = avgForField("stress") / 10;
+
+if (avgMood) {
+  avgMood.textContent = fmtPct(moodPct);
+  avgMood.closest(".metricCircle").style.background =
+    colourForValue(moodPct);
+}
+
+if (avgEnergy) {
+  avgEnergy.textContent = fmtPct(energyPct);
+  avgEnergy.closest(".metricCircle").style.background =
+    colourForValue(energyPct);
+}
+
+if (avgStress) {
+  avgStress.textContent = fmtPct(stressPct);
+  avgStress.closest(".metricCircle").style.background =
+    colourForValue(stressPct);
+}
+
+
+
+    updateTopbar();
+  }
+
+  btnRefreshDashboard?.addEventListener("click", refreshDashboard);
+
+  /* ---------------------------------------------------------
+     To-do lists
+     - Fix: index now shows created lists (uses todoLists store)
+     - Priority filter is multi-select (Excel-like)
+     - Clicking a to-do item opens Action modal (no separate to-do modal in new HTML)
+  --------------------------------------------------------- */
+
+
+  function showTodoIndex() {
+    todoDetailCard?.classList.add("hidden");
+    todoIndexCard?.classList.remove("hidden");
+    currentTodoDate = null;
+  }
+
+  function showTodoDetail(dateISO) {
+  currentTodoDate = dateISO;
+  if (todoDetailDateLabel) todoDetailDateLabel.textContent = isoToDDMMYYYY(dateISO);
+  todoIndexCard?.classList.add("hidden");
+  todoDetailCard?.classList.remove("hidden");
+
+  window.DB.ensureTodoList(dateISO).then(() => {
+    if (todoNewText) todoNewText.value = "";
+    refreshTodoDetail();
+  });
+}
+
+
+  btnTodoBack?.addEventListener("click", refreshTodoIndex);
+
+  btnTodoNewList?.addEventListener("click", () => {
+    if (todoNewListDate) todoNewListDate.value = todayStrISO();
+    showModal(todoNewListModal);
+  });
+  todoNewListBackdrop?.addEventListener("click", () => hideModal(todoNewListModal));
+  btnCloseTodoNewList?.addEventListener("click", () => hideModal(todoNewListModal));
+
+  btnCreateTodoList?.addEventListener("click", async () => {
+    const d = (todoNewListDate?.value) || todayStrISO();
+    await window.DB.ensureTodoList(d);
+    hideModal(todoNewListModal);
+    showTodoDetail(d);
+  });
+
+  btnTodoToday?.addEventListener("click", async () => {
+    const d = todayStrISO();
+    await window.DB.ensureTodoList(d);
+    showTodoDetail(d);
+  });
+
+  todoSort?.addEventListener("change", refreshTodoIndex);
+
+  async function refreshTodoIndex() {
+    showTodoIndex();
+    /// FIX: ensure todoLists exist ONLY for dates that actually have todos
+const allTodos = (await window.DB.getAll(window.DB.STORES.todos))
+  .filter(t => !t._deleted && t.date);
+
+// Count todos per date
+const todoCountByDate = new Map();
+for (const t of allTodos) {
+  todoCountByDate.set(t.date, (todoCountByDate.get(t.date) || 0) + 1);
+}
+
+// Ensure lists exist for dates WITH todos
+for (const [date, count] of todoCountByDate.entries()) {
+  if (count > 0) {
+    await window.DB.ensureTodoList(date);
+  }
+}
+
+
+
+    const lists = (await window.DB.getAll(window.DB.STORES.todoLists)).filter(x => !x._deleted);
+    const todos = (await window.DB.getAll(window.DB.STORES.todos)).filter(x => !x._deleted);
+
+    const sortMode = todoSort?.value || "dateDesc";
+    
+
+    const archivedProjectIds = new Set(
+  (await window.DB.getAll(window.DB.STORES.projects))
+    .filter(p => p.archived)
+    .map(p => p.id)
+);
+
+const rows = lists
+  .map(l => {
+    const visibleTodos = todos.filter(t =>
+      t.date === l.date &&
+      !t._deleted &&
+      (!t.projectId || !archivedProjectIds.has(t.projectId))
+    );
+
+    const done = visibleTodos.filter(t => t.status === "Completed").length;
+    return { date: l.date, total: visibleTodos.length, done };
+  })
+
+
+    rows.sort((a, b) => sortMode === "dateAsc" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date));
+
+    todoDateList.innerHTML = "";
+    if (!rows.length) {
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="list__left"><div class="muted">No to-do lists yet.</div></div>`;
+      todoDateList.appendChild(li);
+      return;
+    }
+
+    for (const x of rows) {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <div class="list__left">
+          <div class="titleClamp">
+            <div><strong>${isoToDDMMYYYY(x.date)}</strong></div>
+            <div class="muted">${x.done}/${x.total} completed</div>
+          </div>
+        </div>
+        <div class="list__right">
+          <span class="pill">${x.total} items</span>
+        </div>
+      `;
+      li.addEventListener("click", async () => {
+        await window.DB.ensureTodoList(x.date);
+        showTodoDetail(x.date);
+      });
+      todoDateList.appendChild(li);
+    }
+  }
+
+  async function refreshTodoDetail() {
+    if (!currentTodoDate) return;
+
+    const allTodos = await window.DB.getByIndex(
+  window.DB.STORES.todos,
+  window.DB.idx.todosByDate,
+  currentTodoDate
+);
+
+const archivedProjectIds = new Set(
+  (await window.DB.getAll(window.DB.STORES.projects))
+    .filter(p => p.archived)
+    .map(p => p.id)
+);
+
+const items = allTodos.filter(t =>
+  !t._deleted &&
+  (!t.projectId || !archivedProjectIds.has(t.projectId))
+);
+
+
+items.sort((a, b) => {
+  // 🔑 Completed items always last
+  const aDone = a.status === "Completed";
+  const bDone = b.status === "Completed";
+  if (aDone !== bDone) return aDone ? 1 : -1;
+
+  // Priority (unchanged)
+  const prio =
+    prioRank(b.priority || "Medium") -
+    prioRank(a.priority || "Medium");
+  if (prio !== 0) return prio;
+
+  // Status (Open > In Progress)
+  const statusRank = s =>
+    s === "In Progress" ? 2 :
+    s === "Open" ? 1 : 0;
+
+  const status =
+    statusRank(b.status || "Open") -
+    statusRank(a.status || "Open");
+  if (status !== 0) return status;
+
+  // Created date (older first)
+  return (a.createdAt || 0) - (b.createdAt || 0);
+});
+
+
+
+
+    todoList.innerHTML = "";
+    if (!items.length) {
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="list__left"><div class="muted">No tasks yet. Add one above.</div></div>`;
+      todoList.appendChild(li);
+      return;
+    }
+
+    for (const t of items) {
+      const li = document.createElement("li");
+
+      const left = document.createElement("div");
+      left.className = "list__left";
+
+      const dot = document.createElement("div");
+      dot.className = "todoDot" + (t.status === "Completed" ? " done" : "");
+
+      const title = document.createElement("div");
+      title.className = "titleClamp";
+
+      const due = t.dueDate ? isoToDDMMYYYY(t.dueDate) : "—";
+
+let projectLabel = "No project";
+if (t.projectId) {
+  const p = await window.DB.getOne(window.DB.STORES.projects, t.projectId);
+  if (p && !p._deleted) projectLabel = p.name;
+}
+
+title.innerHTML = `
+  <div class="todoText ${t.status === "Completed" ? "done" : ""}">
+    <strong>${escapeHtml(t.text)}</strong>
   </div>
-</div>
+  <div class="muted">
+    Project: ${escapeHtml(projectLabel)} • Due: ${escapeHtml(due)}
+  </div>
+`;
+
+
+      left.appendChild(dot);
+      left.appendChild(title);
+
+      const right = document.createElement("div");
+      right.className = "list__right";
+
+      const prio = document.createElement("div");
+      prio.className = `prioDot ${prioClass(t.priority || "Medium")}`;
+      prio.title = `Priority: ${t.priority || "Medium"}`;
+
+      const statusBtn = document.createElement("button");
+      statusBtn.type = "button";
+      statusBtn.className = `statusBtn ${statusClass(t.status || "Open")}`;
+      statusBtn.textContent = t.status || "Open";
+
+      if (typeof t.notes === "string" && t.notes.trim().length > 0) {
+  const note = document.createElement("div");
+  note.className = "notesIcon";
+  note.title = "Has notes";
+  note.textContent = "✎";
+  right.appendChild(note);
+}
+
+
+      right.appendChild(prio);
+      right.appendChild(statusBtn);
+
+      li.appendChild(left);
+      li.appendChild(right);
+
+      dot.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const next = t.status === "Completed" ? "Open" : "Completed";
+        await window.DB.updateTodo(t.id, { status: next });
+        await refreshTodoDetail();
+        await refreshProjectsAndActions();
+        await refreshDashboard();
+              });
+
+      statusBtn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const next = cycleStatus(t.status || "Open");
+        await window.DB.updateTodo(t.id, { status: next });
+        await refreshTodoDetail();
+        await refreshProjectsAndActions();
+        await refreshDashboard();
+              });
+
+      const delBtn = document.createElement("button");
+delBtn.type = "button";
+delBtn.className = "iconBtn";
+delBtn.title = "Delete task";
+delBtn.textContent = "🗑";
+
+delBtn.addEventListener("click", async (ev) => {
+  ev.stopPropagation();
+  const ok = confirm("Delete this task?");
+  if (!ok) return;
+
+  await window.DB.deleteTodo(t.id);
+  await refreshTodoDetail();
+  await refreshProjectsAndActions();
+  await refreshDashboard();
+});
+
+right.appendChild(delBtn);
+
+      prio.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const next = cyclePriority(t.priority || "Medium");
+        await window.DB.updateTodo(t.id, { priority: next });
+        await refreshTodoDetail();
+        await refreshProjectsAndActions();
+      });
+
+      // In the new UI, clicking a to-do opens the Action modal (same underlying record via actionId)
+      li.addEventListener("click", async () => {
+        if (t.actionId) openActionModal(t.actionId);
+        else {
+          // Ensure linkage exists (db.js upsertTodo normally ensures it, but guard anyway)
+          const saved = await window.DB.upsertTodo({ id: t.id, date: t.date, text: t.text, status: t.status, priority: t.priority, dueDate: t.dueDate, notes: t.notes, projectId: t.projectId });
+          if (saved?.actionId) openActionModal(saved.actionId);
+        }
+      });
+
+      todoList.appendChild(li);
+    }
+  }
+
+  btnAddTodo?.addEventListener("click", async () => {
+  if (!currentTodoDate) {
+    const d = todayStrISO();
+    await window.DB.ensureTodoList(d);
+    showTodoDetail(d);
+  }
+
+    const text = (todoNewText.value || "").trim();
+    if (!text) return;
+
+    await window.DB.ensureTodoList(currentTodoDate);
+
+    await window.DB.upsertTodo({
+      date: currentTodoDate,
+      text,
+      status: "Open",
+      priority: "Medium",
+      notes: "",
+      dueDate: "",
+      projectId: null
+    });
+
+    todoNewText.value = "";
+    await refreshTodoDetail();
+    await refreshProjectsAndActions();
+    await refreshDashboard();
+  });
+
+  todoNewText?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      btnAddTodo.click();
+    }
+  });
+
+  /* ---------------------------------------------------------
+     Journal
+     - Index -> detail
+     - Autosave while typing (no manual Save required)
+  --------------------------------------------------------- */
+
+  function showJournalIndex() {
+    journalDetailCard?.classList.add("hidden");
+    journalIndexCard?.classList.remove("hidden");
+    currentJournalDate = null;
+  }
+
+  function showJournalDetail(dateISO) {
+    currentJournalDate = dateISO;
+    if (journalDetailDateLabel) journalDetailDateLabel.textContent = isoToDDMMYYYY(dateISO);
+    journalIndexCard?.classList.add("hidden");
+    journalDetailCard?.classList.remove("hidden");
+    loadJournalDetail();
+
+    requestAnimationFrame(() => {
+  jGratitude.focus();
+});
+
+  }
+
+  btnJournalBack?.addEventListener('click', async () => {
+  // IMPORTANT: force-save journal before returning to list
+  await autosaveJournal();
+  showJournalIndex();
+  await refreshJournalIndex();
+});
+
+
+
+  btnJournalNewEntry?.addEventListener("click", () => {
+    if (journalNewEntryDate) journalNewEntryDate.value = todayStrISO();
+    showModal(journalNewEntryModal);
+  });
+  journalNewEntryBackdrop?.addEventListener("click", () => hideModal(journalNewEntryModal));
+  btnCloseJournalNewEntry?.addEventListener("click", () => hideModal(journalNewEntryModal));
+
+  btnCreateJournalEntry?.addEventListener("click", async () => {
+    const d = journalNewEntryDate.value || todayStrISO();
+    hideModal(journalNewEntryModal);
+    showJournalDetail(d);
+  });
+
+  journalSearchInput?.addEventListener("input", () => {
+  journalSearchText = journalSearchInput.value.toLowerCase();
+  refreshJournalIndex();
+});
+
+
+  async function refreshJournalIndex() {
+  showJournalIndex();
+
+  if (journalSearchInput) {
+    journalSearchInput.value = journalSearchText;
+  }
+
+  const all = await window.DB.getAll(window.DB.STORES.journal);
+
+  const dates = all
+  .filter(j => !j._deleted)
+  .filter(j => {
+    if (!journalSearchText) return true;
+
+    const text =
+      (j.gratitude || "") +
+      (j.objectives || "") +
+      (typeof j.reflections === "object"
+        ? Object.values(j.reflections).join(" ")
+        : "");
+
+    return text.toLowerCase().includes(journalSearchText);
+  })
+  .map(j => j.date)
+  .sort((a, b) => b.localeCompare(a));
+
+
+  journalDateList.innerHTML = "";
+
+  if (!dates.length) {
+    const li = document.createElement("li");
+    li.innerHTML = `<div class="list__left"><div class="muted">No journal entries yet.</div></div>`;
+    journalDateList.appendChild(li);
+    return;
+  }
+
+  for (const d of dates) {
+    const rec = all.find(j => !j._deleted && j.date === d);
+    if (!rec) continue;
+
+    let preview = "";
+
+if (journalSearchText) {
+  const allText =
+    (rec.gratitude || "") + " " +
+    (rec.objectives || "") + " " +
+    (rec.reflections && typeof rec.reflections === "object"
+      ? Object.values(rec.reflections).join(" ")
+      : "");
+
+  const idx = allText.toLowerCase().indexOf(journalSearchText);
+  if (idx !== -1) {
+    preview = allText.slice(Math.max(0, idx - 40), idx + 40);
+  }
+} else {
+  preview =
+    rec.gratitude ||
+    rec.objectives ||
+    (
+      rec.reflections &&
+      typeof rec.reflections === "object" &&
+      Object.values(rec.reflections).find(v => v && v.trim())
+    ) ||
+    "";
+}
+
+
+    const li = document.createElement("li");
+
+    li.innerHTML = `
+      <div class="list__left">
+        <div class="titleClamp">
+          <div><strong>${isoToDDMMYYYY(d)}</strong></div>
+<div class="muted">${
+  preview
+    ? highlightMatch(String(preview), journalSearchText)
+    : "—"
+}</div>
+
         </div>
       </div>
-    </section>
-
-    <!-- TODO -->
-    <section id="view-todo" class="view hidden">
-      <div id="todoIndexCard" class="card">
-        <div class="cardHeader">
-          <div class="cardTitle">To-do lists</div>
-          <div class="cardActions">
-            <button id="btnTodoToday" class="btn" type="button">Today</button>
-            <button id="btnTodoNewList" class="btn btn--primary" type="button">+</button>
-          </div>
-        </div>
-
-        <div class="filterRow">
-
-          <div class="filterSingle">
-            <select id="todoSort" class="select">
-              <option value="dateDesc">Date (newest)</option>
-              <option value="dateAsc">Date (oldest)</option>
-            </select>
-          </div>
-        </div>
-
-        <ul id="todoDateList" class="list"></ul>
-      </div>
-
-      <div id="todoDetailCard" class="card hidden">
-        <div class="cardHeader">
-          <button id="btnTodoBack" class="btn btn--ghost" type="button">Back</button>
-          <div class="cardTitle" id="todoDetailDateLabel">—</div>
-          <div class="cardActions"></div>
-        </div>
-
-        <div class="inlineAdd">
-          <input id="todoNewText" class="input" placeholder="Add a task…" />
-          <button id="btnAddTodo" class="btn btn--primary" type="button">Add</button>
-        </div>
-
-        <ul id="todoList" class="list"></ul>
-      </div>
-    </section>
-
-    <!-- JOURNAL -->
-    <section id="view-journal" class="view hidden">
-      <div id="journalIndexCard" class="card">
-        <div class="cardHeader">
-          <div class="cardTitle">Journal</div>
-          <div class="cardActions">
-            <button id="btnJournalNewEntry" class="btn btn--primary" type="button">+</button>
-          </div>
-        </div>
-        <div class="field">
-  <input
-    id="journalSearchInput"
-    class="input"
-    placeholder="Search journals…"
-  />
-</div>
-        <ul id="journalDateList" class="list"></ul>
-      </div>
-
-      <div id="journalDetailCard" class="card hidden">
-        <div class="cardHeader">
-          <button id="btnJournalBack" class="btn btn--ghost" type="button">Back</button>
-          <div class="cardTitle" id="journalDetailDateLabel">—</div>
-          <div class="cardActions"></div>
-        </div>
-
-        <div class="field">
-          <label>Gratitude</label>
-<div class="richToolbar">
-  <button type="button" data-cmd="bold"><b>B</b></button>
-  <button type="button" data-cmd="italic"><i>I</i></button>
-  <button type="button" data-cmd="underline"><u>U</u></button>
-  <button type="button" data-cmd="insertUnorderedList">• List</button>
-  <button type="button" data-cmd="insertOrderedList">1. List</button>
-</div>
-
-<div
-  id="jGratitude"
-  class="textarea richText autosize"
-  contenteditable="true">
-</div>
-        </div>
-        <div class="field">
-          <label>Objectives</label>
-<div class="richToolbar">
-  <button type="button" data-cmd="bold"><b>B</b></button>
-  <button type="button" data-cmd="italic"><i>I</i></button>
-  <button type="button" data-cmd="underline"><u>U</u></button>
-  <button type="button" data-cmd="insertUnorderedList">• List</button>
-  <button type="button" data-cmd="insertOrderedList">1. List</button>
-</div>
-
-<div
-  id="jObjectives"
-  class="textarea richText autosize"
-  contenteditable="true">
-</div>
-        </div>
-        <!-- =========================
-     Reflections (tagged)
-========================= -->
-
-<div id="journalReflections" class="field">
-  <label>Reflections</label>
-
-  <!-- Empty state -->
-  <div id="journalReflectionsEmpty" class="muted">
-    No reflections yet.
-  </div>
-
-  <!-- Tagged reflection sections will be inserted here -->
-  <div id="journalReflectionsList"></div>
-
-  <!-- Add reflection button -->
-  <button
-    id="btnAddReflection"
-    class="btn btn--ghost"
-    type="button"
-    style="margin-top:8px"
-  >
-    + Add reflection
-  </button>
-  <!-- Reflection tag chooser -->
-<div
-  id="reflectionTagChooser"
-  class="hidden"
-  style="margin-top:8px"
->
-  <div class="muted" style="margin-bottom:6px">
-    Add reflection for:
-  </div>
-
-  <div id="reflectionTagOptions" class="row"></div>
-</div>
-
-</div>
-
-        <div class="journalSliders">
-
-  <div class="journalSlider">
-    <label>Mood</label>
-
-    <div class="sliderScale">
-      <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
-      <span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
-    </div>
-
-    <input id="journalMood" type="range" min="1" max="10" step="1" />
-  </div>
-
-  <div class="journalSlider">
-    <label>Energy</label>
-
-    <div class="sliderScale">
-      <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
-      <span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
-    </div>
-
-    <input id="journalEnergy" type="range" min="1" max="10" step="1" />
-  </div>
-
-  <div class="journalSlider">
-    <label>Stress</label>
-
-    <div class="sliderScale">
-      <span>1</span><span>2</span><span>3</span><span>4</span><span>5</span>
-      <span>6</span><span>7</span><span>8</span><span>9</span><span>10</span>
-    </div>
-
-    <input id="journalStress" type="range" min="1" max="10" step="1" />
-  </div>
-
-</div>
-
-</div>
-
-
-        <button id="btnSaveJournal" class="btn btn--ghost hidden" type="button">Save</button>
-      </div>
-    </section>
-
-    <!-- PROJECTS / ACTIONS -->
-    <section id="view-actions" class="view hidden">
-      <div class="card">
-        <div class="cardHeader">
-          <div class="segmented">
-            <button id="btnActionsViewProjects" class="segBtn" type="button" aria-pressed="true">Projects</button>
-            <button id="btnActionsViewActions" class="segBtn" type="button" aria-pressed="false">All actions</button>
-          </div>
-
-          <div class="cardActions">
-            <button id="btnAddProject" class="btn" type="button">+ Project</button>
-            <button id="btnAddAction" class="btn btn--primary" type="button">+ Action</button>
-          </div>
-        </div>
-
-        <div id="actionsProjectsWrap">
-          <div class="twoCol">
-            <div class="pane">
-              <div class="paneHeader">
-                <div class="paneTitle">Projects</div>
-              </div>
-              <ul id="projectList" class="list"></ul>
-              <div class="paneHeader" style="margin-top:12px">
-  <button id="btnToggleArchivedProjects" class="btn btn--ghost" type="button">
-    Show archived projects
-  </button>
-</div>
-
-<ul id="archivedProjectList" class="list hidden"></ul>
-            </div>
-
-            <div class="pane">
-              <div class="paneHeader">
-  <div>
-    <div class="paneTitle" id="projectTitle">Project</div>
-    <div class="muted" id="projectMeta">—</div>
-  </div>
-</div>
-              <button id="btnToggleProjectNotes" class="btn btn--ghost" type="button">
-  Show project notes
-</button>
-
-<div id="projectNotesWrap" class="field hidden">
-  <label>Project notes</label>
-  <textarea id="projectNotes" class="textarea autosize" rows="4" placeholder="Notes for this project…"></textarea>
-</div>
-
-
-              <div class="filterRow">
-                <div class="filterMulti">
-                  <button id="actionFilterPriorityBtn2" class="filterBtn" type="button">Priority</button>
-                  <div id="actionFilterPriorityPanel2" class="filterPanel hidden" tabindex="-1"></div>
-                </div>
-
-                <div class="filterMulti">
-                  <button id="actionFilterStatusBtn2" class="filterBtn" type="button">Status</button>
-                  <div id="actionFilterStatusPanel2" class="filterPanel hidden" tabindex="-1"></div>
-                </div>
-
-                
-              </div>
-              
-
-<button id="btnToggleProjectActions" class="btn btn--ghost" type="button">
-  Show actions
-</button>
-
-<div id="projectActionsWrap" class="hidden">
-  <ul id="actionList2" class="list"></ul>
-</div>
-
-
-
-<button id="btnToggleProjectNotesLinked" class="btn btn--ghost" type="button">
-  Show linked notes
-</button>
-
-<div id="projectLinkedNotesWrap" class="hidden">
-  <ul id="projectLinkedNotesList" class="list"></ul>
-</div>
-
-
-            </div>
-          </div>
-        </div>
-
-        <div id="actionsActionsWrap" class="hidden">
-          <div class="filterRow">
-            <div class="filterMulti">
-              <button id="actionFilterProjectBtn" class="filterBtn" type="button">Project</button>
-              <div id="actionFilterProjectPanel" class="filterPanel hidden" tabindex="-1"></div>
-            </div>
-
-            <div class="filterMulti">
-              <button id="actionFilterPriorityBtn" class="filterBtn" type="button">Priority</button>
-              <div id="actionFilterPriorityPanel" class="filterPanel hidden" tabindex="-1"></div>
-            </div>
-
-            <div class="filterMulti">
-              <button id="actionFilterStatusBtn" class="filterBtn" type="button">Status</button>
-              <div id="actionFilterStatusPanel" class="filterPanel hidden" tabindex="-1"></div>
-            </div>
-
-            <div class="filterSingle">
-              <select id="actionSort" class="select">
-                <option value="dueAsc">Due (earliest)</option>
-                <option value="dueDesc">Due (latest)</option>
-                <option value="priorityDesc">Priority (high)</option>
-                <option value="priorityAsc">Priority (low)</option>
-                <option value="createdDesc">Created (newest)</option>
-              </select>
-            </div>
-
-            <button id="btnRefreshActions" class="btn btn--ghost" type="button">Refresh</button>
-          </div>
-
-          <ul id="actionList" class="list"></ul>
-        </div>
-      </div>
-    </section>
-
-    <!-- HABITS -->
-    <section id="view-habits" class="view hidden">
-      <div class="card" id="habitsCard">
-        <div class="cardHeader">
-          <div class="cardTitle">Habits</div>
-          <div class="cardActions">
-            <input id="habitName" class="input" placeholder="Add a habit…" />
-            <select id="habitFreq" class="select">
-              <option value="Daily">Daily</option>
-              <option value="Weekdays">Weekdays</option>
-              <option value="Weekly">Weekly</option>
-            </select>
-            <button id="btnAddHabit" class="btn btn--primary" type="button">Add</button>
-            <button id="btnToggleHabits" class="btn btn--ghost" type="button">Hide habits</button>
-          </div>
-        </div>
-
-        <div class="filterRow">
-          <div class="segmented">
-            <button id="habitViewWeekly" class="segBtn" type="button" aria-pressed="true">Weekly</button>
-            <button id="habitViewMonthly" class="segBtn" type="button" aria-pressed="false">Monthly</button>
-          </div>
-
-          <input id="habitRefDate" class="input input--date" type="date" />
-<div id="monthlyHabitSelectWrap" class="hidden">
-  <select id="monthlyHabitSelect" class="select">
-    <option value="">All habits</option>
-  </select>
-</div>
-        </div>
-
-        <div id="habitWeeklyWrap"></div>
-        <div id="habitMonthlyWrap" class="hidden"></div>
-
-        <div id="habitsListsWrap" class="twoCol">
-  <div class="pane">
-    <div class="paneHeader">
-      <div class="paneTitle">Active habits</div>
-      <button id="btnRefreshHabits" class="btn btn--ghost" type="button">Refresh</button>
-    </div>
-    <ul id="habitList" class="list"></ul>
-
-    <div class="paneHeader" style="margin-top:12px">
-      <div class="paneTitle">Archived</div>
-    </div>
-    <ul id="habitArchivedList" class="list"></ul>
-  </div>
-</div>
-      </div>
-    </section>
-
-    <!-- MEALS -->
-    <section id="view-meals" class="view hidden">
-      <div class="card">
-        <div class="cardHeader">
-          <div class="cardTitle">Meals</div>
-          <div class="cardActions">
-            <div class="segmented">
-              <button id="mealViewDaily" class="segBtn" type="button" aria-pressed="true">Daily</button>
-              <button id="mealViewWeekly" class="segBtn" type="button" aria-pressed="false">Weekly</button>
-            </div>
-            <input id="mealRefDate" class="input input--date" type="date" />
-            <button id="btnRefreshMeals" class="btn btn--ghost" type="button">Refresh</button>
-            <button id="btnToggleMeals" class="btn btn--ghost" type="button">Hide list</button>
-          </div>
-        </div>
-
-        <div class="twoCol mealsWrap">
-          <div class="pane">
-            <div class="paneHeader">
-              <div class="paneTitle">Meals list</div>
-            </div>
-            <div class="inlineAdd">
-              <input id="mealNewName" class="input" placeholder="Add a meal…" />
-              <button id="btnAddMeal" class="btn btn--primary" type="button">Add</button>
-            </div>
-            <div id="mealList" class="stack"></div>
-          </div>
-
-          <div class="pane">
-            <div id="mealDailyWrap"></div>
-            <div id="mealWeeklyWrap" class="hidden"></div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- NOTES -->
-    <section id="view-notes" class="view hidden">
-      <div id="notesIndexCard" class="card">
-
-  <!-- Desktop / Mobile header -->
-  <div class="notesHeader">
-    <div class="notesHeader__left">
-      <h2 class="notesTitle">Notes</h2>
-    </div>
-
-    <div class="notesHeader__right">
-      <button id="btnNotesOpenCollections" class="btn btn--ghost notesOnlyMobile">
-        Collections
-      </button>
-      <button id="btnNewNote" class="btn btn--primary">
-        New
-      </button>
-    </div>
-  </div>
-
-  <!-- Search (always visible, but separated) -->
-  <div class="notesSearchRow">
-    <input
-      id="notesSearchInput"
-      class="input"
-      placeholder="Search notes…"
-    />
-    <button id="notesProjectFilterBtn" class="btn btn--ghost" type="button">
-  Projects
-</button>
-<button id="notesCollectionFilterBtn" class="btn btn--ghost" type="button">
-    Collections
-  </button>
-  </div>
-
-  <div id="notesProjectFilterPanel" class="filterPanel hidden" tabindex="-1"></div>
-  <div id="notesCollectionFilterPanel" class="filterPanel hidden" tabindex="-1"></div>
+      <div class="list__right"></div>
+    `;
+
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "iconBtn";
+    delBtn.title = "Delete journal entry";
+    delBtn.textContent = "🗑";
+
+    delBtn.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      const ok = await confirmInApp({
+        title: "Delete journal entry",
+        message: "Delete this journal entry?"
+      });
+      if (!ok) return;
+
+      await window.DB.deleteJournal(d);
+      await refreshJournalIndex();
+      await refreshDashboard();
+    });
+
+    li.querySelector(".list__right").appendChild(delBtn);
+
+    li.addEventListener("click", () => showJournalDetail(d));
+
+    journalDateList.appendChild(li);
+  }
+}
+
+
+  async function loadJournalDetail() {
+    if (!currentJournalDate) return;
+    const rec = (await window.DB.getOne(window.DB.STORES.journal, currentJournalDate));
+    // Initialise tagged reflections state
+currentReflections = rec?.reflections && typeof rec.reflections === "object"
+  ? { ...rec.reflections }
+  : {};
+
+renderReflectionSections();
+
+    jGratitude.innerHTML = rec?.gratitude || "";
+jObjectives.innerHTML = rec?.objectives || "";
+
+bindRichTextToolbar(jGratitude);
+bindRichTextToolbar(jObjectives);
+autosizeRichText(jGratitude);
+autosizeRichText(jObjectives);
+
+
+    // -----------------------------
+// TEMP: render tagged reflections (read-only for now)
+// -----------------------------
+const reflections = rec?.reflections || {};
+
+const orderedTags = [
+  "general",
+  "work",
+  "fitness",
+  "social",
+  "relationships",
+  "sleep",
+  "money"
+];
+
+for (const tag of orderedTags) {
+  if (!reflections[tag]) continue;
+
+  const ta = document.createElement("div");
+ta.className = "textarea richText autosize";
+ta.contentEditable = "true";
+
+  ta.rows = 3;
+  ta.value = reflections[tag];
+
+  const wrapper = document.createElement("div");
+  wrapper.className = "field";
+
+  const label = document.createElement("label");
+  label.textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
+
+  wrapper.appendChild(label);
+  wrapper.appendChild(ta);
+
+  jReflections.parentElement.appendChild(wrapper);
+
+  autosizeTextarea(ta);
+}
+
+    journalMood.value = rec?.mood ?? "";
+journalEnergy.value = rec?.energy ?? "";
+journalStress.value = rec?.stress ?? "";
+    autosizeTextarea(jGratitude);
+    autosizeTextarea(jObjectives);
+    autosizeTextarea(jReflections);
+  }
+
+
+
+  // Set up autosave listeners for journal fields
+  jGratitude?.addEventListener("input", () => {
+    debounce("journal_autosave", 300, autosaveJournal);
+  });
+
+  jObjectives?.addEventListener("input", () => {
+    debounce("journal_autosave", 300, autosaveJournal);
+  });
+
+  journalMood?.addEventListener("input", () => {
+    debounce("journal_autosave", 300, autosaveJournal);
+  });
+
+  journalEnergy?.addEventListener("input", () => {
+    debounce("journal_autosave", 300, autosaveJournal);
+  });
+
+  journalStress?.addEventListener("input", () => {
+    debounce("journal_autosave", 300, autosaveJournal);
+  });
+
+
+  async function autosaveJournal() {
+  if (!currentJournalDate) return;
+
+  const existing = await window.DB.getOne(
+    window.DB.STORES.journal,
+    currentJournalDate
+  );
+
+const gratitude = jGratitude.innerHTML || "";
+const objectives = jObjectives.innerHTML || "";
+
+  // Clean reflections
+  let cleanedReflections = {};
+  if (currentReflections && typeof currentReflections === "object") {
+    for (const [k, v] of Object.entries(currentReflections)) {
+      if (typeof v === "string" && v.trim().length > 0) {
+        cleanedReflections[k] = v;
+      }
+    }
+  }
+
+  // 🔒 SAFETY GUARD:
+  // Do NOT overwrite an existing entry with completely empty content
+  const hasAnyContent =
+    gratitude.trim() ||
+    objectives.trim() ||
+    Object.keys(cleanedReflections).length > 0;
+
+  if (!hasAnyContent && !existing) return;
+
+
+  const payload = {
+  date: currentJournalDate,
+  gratitude,
+  objectives,
+  mood: journalMood.value ? Number(journalMood.value) : null,
+  energy: journalEnergy.value ? Number(journalEnergy.value) : null,
+  stress: journalStress.value ? Number(journalStress.value) : null,
+  reflections: cleanedReflections,
+  updatedAt: Date.now()   // 🔑 CRITICAL
+};
+
+
+  await window.DB.upsertJournal(payload);
+}
+
+
+
+  [jGratitude, jObjectives].forEach((el) => {
+  if (!el) return;
+  el.addEventListener("input", () => {
+    autosizeRichText(el);
+    debounce("journal_autosave", 300, autosaveJournal);
+  });
+});
+
+  [journalMood, journalEnergy, journalStress].forEach(el => {
+  el?.addEventListener("input", () => {
+    debounce("journal_autosave", 300, autosaveJournal);
+  });
+});
+
+
+  // Keep button for backwards compatibility, but not required
+  btnSaveJournal?.addEventListener("click", async () => {
+    await autosaveJournal();
+    alert("Saved.");
+    await refreshJournalIndex();
+  });
+
+  /* ---------------------------------------------------------
+     Projects & Actions
+     - Actions created from to-dos automatically via DB layer
+     - +Action reliably shows in list (refresh after save)
+     - Filters are multi-select (Project, Priority, Status)
+     - Project pane: add/view notes; see actions for selected project
+  --------------------------------------------------------- */
+
+  function setActionsMode(mode) {
+    actionsMode = mode;
+    const isProjects = mode === "projects";
+    setPressed(btnActionsViewProjects, isProjects);
+    setPressed(btnActionsViewActions, !isProjects);
+    actionsProjectsWrap?.classList.toggle("hidden", !isProjects);
+    actionsActionsWrap?.classList.toggle("hidden", isProjects);
+  }
+
+  btnActionsViewProjects?.addEventListener("click", () => { setActionsMode("projects"); refreshProjectsAndActions(); });
+  btnActionsViewActions?.addEventListener("click", () => { setActionsMode("actions"); refreshProjectsAndActions(); });
+
+  async function getProjectsActive() {
+  return (await window.DB.getAll(window.DB.STORES.projects))
+    .filter(p => !p._deleted && !p.archived)
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+}
+
+function renderReflectionSections() {
+  if (!journalReflectionsList || !journalReflectionsEmpty) return;
+
+  journalReflectionsList.innerHTML = "";
+
+  const tags = Object.keys(currentReflections);
+
+  // Empty state
+  journalReflectionsEmpty.classList.toggle("hidden", tags.length > 0);
+
+  for (const tag of REFLECTION_TAGS) {
+    if (!(tag in currentReflections)) continue;
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "field";
+
+    const labelRow = document.createElement("div");
+    labelRow.style.display = "flex";
+    labelRow.style.justifyContent = "space-between";
+    labelRow.style.alignItems = "center";
+
+    const label = document.createElement("label");
+    label.textContent = tag.charAt(0).toUpperCase() + tag.slice(1);
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "btn btn--ghost";
+    removeBtn.textContent = "×";
+    removeBtn.title = "Remove reflection";
+
+    labelRow.appendChild(label);
+    labelRow.appendChild(removeBtn);
+
+    const ta = document.createElement("textarea");
+    ta.className = "textarea autosize";
+    ta.rows = 3;
+ta.innerHTML = currentReflections[tag] || "";
+
+    ta.addEventListener("input", () => {
+  currentReflections[tag] = ta.innerHTML;
+  debounce("journal_autosave", 300, autosaveJournal);
+  bindRichTextToolbar(ta);
+  autosizeRichText(ta);
+});
+
+    removeBtn.addEventListener("click", async () => {
+  if (ta.value.trim()) {
+    const ok = await confirmInApp({
+      title: "Remove reflection",
+      message: `Remove ${label.textContent} reflection?`
+    });
+    if (!ok) return;
+  }
+
+  // Permanently remove the reflection key
+  delete currentReflections[tag];
+
+  // Re-render UI
+  renderReflectionSections();
+
+  // Immediately persist the removal
+  await autosaveJournal();
+});
+
+
+    wrapper.appendChild(labelRow);
+    wrapper.appendChild(ta);
+    journalReflectionsList.appendChild(wrapper);
+    bindRichTextToolbar(ta);
+    autosizeTextarea(ta);
+
+
+  }
+}
+
+
+  async function populateProjectSelect(selectEl, includeNone = true) {
+    const projects = await getProjectsActive();
+    selectEl.innerHTML = "";
+    if (includeNone) {
+      const o = document.createElement("option");
+      o.value = "None";
+      o.textContent = "No project";
+      selectEl.appendChild(o);
+    }
+    for (const p of projects) {
+      const o = document.createElement("option");
+      o.value = p.id;
+      o.textContent = p.name;
+      selectEl.appendChild(o);
+    }
+  }
+
+  function buildProjectFilterPanel(projects) {
+    // Project filter includes: All, None, each project
+    const opts = ["All", "None", ...projects.map(p => p.name)];
+    // Store selected by special tokens: "__ALL__", "__NONE__", or projectId values.
+    // For UI display we map back.
+    const state = filterState.actionsProject;
+
+    buildMultiFilter({
+      button: actionFilterProjectBtn,
+      panel: actionFilterProjectPanel,
+      title: "Project",
+      options: opts,
+      stateSet: (function () {
+        // A proxy Set of labels for panel toggling; on Apply we reconcile to ids.
+        // To keep this simple, we store labels in a hidden temp set and convert.
+        const labelSet = new Set();
+        if (state.has("__ALL__")) labelSet.add("All");
+        if (state.has("__NONE__")) labelSet.add("None");
+        for (const p of projects) if (state.has(p.id)) labelSet.add(p.name);
+        // Replace methods to keep panel in sync
+        labelSet._commit = () => {
+          state.clear();
+          if (labelSet.has("All")) state.add("__ALL__");
+          if (labelSet.has("None")) state.add("__NONE__");
+          for (const p of projects) if (labelSet.has(p.name)) state.add(p.id);
+        };
+        return labelSet;
+      })(),
+      onApply: () => {
+        // Commit label selections into id selections
+        const labelSet = arguments.callee.caller?.arguments?.[0]?.stateSet; // not reliable
+        // Instead: rebuild from panel checkboxes by reading the panel DOM
+        const picked = new Set();
+        actionFilterProjectPanel.querySelectorAll("input[type=checkbox]").forEach((cb, i) => {
+          if (!cb.checked) return;
+          const label = opts[i];
+          picked.add(label);
+        });
+        filterState.actionsProject.clear();
+        if (picked.has("All") || !picked.size) filterState.actionsProject.add("__ALL__");
+        if (picked.has("None")) filterState.actionsProject.add("__NONE__");
+        for (const p of projects) if (picked.has(p.name)) filterState.actionsProject.add(p.id);
+        refreshActionsUI();
+      }
+    });
+  }
+
+  buildMultiFilter({
+    button: actionFilterPriorityBtn,
+    panel: actionFilterPriorityPanel,
+    title: "Priority",
+    options: ["Low", "Medium", "High"],
+    stateSet: filterState.actionsPriority,
+    onApply: () => refreshActionsUI()
+  });
+
+  buildMultiFilter({
+    button: actionFilterStatusBtn,
+    panel: actionFilterStatusPanel,
+    title: "Status",
+    options: ["Open", "In Progress", "Completed"],
+    stateSet: filterState.actionsStatus,
+    onApply: () => refreshActionsUI()
+  });
+
+  buildMultiFilter({
+    button: actionFilterPriorityBtn2,
+    panel: actionFilterPriorityPanel2,
+    title: "Priority",
+    options: ["Low", "Medium", "High"],
+    stateSet: filterState.projectPriority,
+    onApply: () => refreshActionsForProject()
+  });
+
+  buildMultiFilter({
+    button: actionFilterStatusBtn2,
+    panel: actionFilterStatusPanel2,
+    title: "Status",
+    options: ["Open", "In Progress", "Completed"],
+    stateSet: filterState.projectStatus,
+    onApply: () => refreshActionsForProject()
+  });
+
+  async function buildNotesFilters() {
+  // ---------- Projects ----------
+  const projects = (await window.DB.getAll(window.DB.STORES.projects))
+    .filter(p => !p._deleted && !p.archived);
+
+  buildMultiFilter({
+    button: notesProjectFilterBtn,
+    panel: notesProjectFilterPanel,
+    title: "Projects",
+    options: ["All", ...projects.map(p => p.name)],
+    stateSet: new Set(
+      filterState.notesProjects.has("__ALL__")
+        ? ["All"]
+        : projects.filter(p => filterState.notesProjects.has(p.id)).map(p => p.name)
+    ),
+    onApply: () => {
+      const picked = new Set();
+      notesProjectFilterPanel
+        .querySelectorAll("input[type=checkbox]")
+        .forEach((cb, i) => {
+          if (!cb.checked) return;
+          const label = i === 0 ? "All" : projects[i - 1].id;
+          picked.add(label);
+        });
+
+      filterState.notesProjects.clear();
+      if (picked.has("All") || picked.size === 0) {
+        filterState.notesProjects.add("__ALL__");
+      } else {
+        picked.forEach(id => filterState.notesProjects.add(id));
+      }
+
+      refreshNotes();
+    }
+  });
+
+  // ---------- Collections ----------
+  const collections = (await window.DB.getAll(window.DB.STORES.collections))
+    .filter(c => !c._deleted && !c.archived);
+
+  buildMultiFilter({
+    button: notesCollectionFilterBtn,
+    panel: notesCollectionFilterPanel,
+    title: "Collections",
+    options: ["All", ...collections.map(c => c.name)],
+    stateSet: new Set(
+      filterState.notesCollections.has("__ALL__")
+        ? ["All"]
+        : collections.filter(c => filterState.notesCollections.has(c.id)).map(c => c.name)
+    ),
+    onApply: () => {
+      const picked = new Set();
+      notesCollectionFilterPanel
+        .querySelectorAll("input[type=checkbox]")
+        .forEach((cb, i) => {
+          if (!cb.checked) return;
+          const label = i === 0 ? "All" : collections[i - 1].id;
+          picked.add(label);
+        });
+
+      filterState.notesCollections.clear();
+      if (picked.has("All") || picked.size === 0) {
+        filterState.notesCollections.add("__ALL__");
+      } else {
+        picked.forEach(id => filterState.notesCollections.add(id));
+      }
+
+      refreshNotes();
+    }
+  });
+}
 
 
 
   
+  btnToggleArchivedProjects?.addEventListener("click", async () => {
+  archivedProjectsVisible = !archivedProjectsVisible;
 
-  <!-- Main layout -->
-  <div class="notesShell">
+  archivedProjectList.classList.toggle("hidden", !archivedProjectsVisible);
+  btnToggleArchivedProjects.textContent = archivedProjectsVisible
+    ? "Hide archived projects"
+    : "Show archived projects";
 
-    <!-- Desktop collections sidebar -->
-    <aside class="notesSidebar notesOnlyDesktop">
-      <ul id="collectionList" class="notesCollectionsList"></ul>
+  // CRITICAL: re-render projects so archived ones are actually added to the DOM
+  await refreshProjectsAndActions();
+});
 
-      <div class="notesSidebarActions">
-        <button id="btnAddCollection" class="btn btn--ghost">+ Collection</button>
-        <button id="btnToggleArchivedCollections" class="btn btn--ghost">
-          Show archived collections
-        </button>
+
+
+  btnAddAction?.addEventListener("click", async () => {
+    await refreshProjectsAndActions(); // ensure modal project list is current
+    openActionModal(null);
+  });
+
+  function openActionModal(editId = null) {
+    editingActionId = editId;
+
+    if (!editId) {
+  actionModalTitle.textContent = "New action";
+  modalActionTitle.value = "";
+  modalActionDue.value = "";
+  modalActionNotes.value = "";
+  modalActionPriority.value = "Medium";
+  modalActionStatus.value = "Open";
+  modalActionProject.value = "None";
+  btnDeleteAction.classList.add("hidden");
+  showModal(actionModal);
+
+  requestAnimationFrame(() => {
+    modalActionTitle.focus();
+  });
+
+  return;
+}
+
+
+
+
+
+    actionModalTitle.textContent = "Edit action";
+    btnDeleteAction.classList.remove("hidden");
+    showModal(actionModal);
+    loadActionIntoModal(editId);
+  }
+  
+
+  async function loadActionIntoModal(id) {
+    const a = await window.DB.getOne(window.DB.STORES.actions, id);
+    if (!a || a._deleted) return;
+
+    await populateProjectSelect(modalActionProject, true);
+
+    modalActionTitle.value = a.title || "";
+    modalActionDue.value = a.dueDate || "";
+    modalActionPriority.value = a.priority || "Medium";
+    modalActionStatus.value = a.status || "Open";
+    modalActionNotes.value = a.notes || "";
+    modalActionProject.value = a.projectId || "None";
+    autosizeTextarea(modalActionNotes);
+  }
+
+  btnCloseActionModal?.addEventListener("click", () => hideModal(actionModal));
+  actionBackdrop?.addEventListener("click", () => hideModal(actionModal));
+
+  btnSaveModalAction?.addEventListener("click", async () => {
+    const title = (modalActionTitle.value || "").trim();
+    if (!title) { alert("Title required."); return; }
+
+    const projectId = (modalActionProject.value === "None") ? null : (modalActionProject.value || null);
+    const dueDate = modalActionDue.value || "";
+    const notes = modalActionNotes.value || "";
+    const priority = modalActionPriority.value || "Medium";
+    const status = modalActionStatus.value || "Open";
+
+    const saved = await window.DB.upsertAction({
+      id: editingActionId || undefined,
+      title,
+      projectId,
+      status,
+      priority,
+      dueDate,
+      notes
+    });
+
+    await window.DB.syncTodosFromAction(saved.id);
+
+    // --------------------------------------------------
+// 🔑 NEW: auto-create today's to-do if due today
+// --------------------------------------------------
+const today = todayStrISO();
+
+if (
+  saved &&
+  saved.status !== "Completed" &&
+  saved.dueDate === today
+) {
+  const todos = await window.DB.getAll(window.DB.STORES.todos);
+
+  const exists = todos.some(t =>
+    !t._deleted &&
+    t.date === today &&
+    t.actionId === saved.id
+  );
+
+  if (!exists) {
+    await window.DB.ensureTodoList(today);
+
+    await window.DB.upsertTodo({
+      date: today,
+      text: saved.title,
+      status: "Open",
+      priority: saved.priority || "Medium",
+      notes: saved.notes || "",
+      dueDate: saved.dueDate || "",
+      projectId: saved.projectId || null,
+      actionId: saved.id
+    });
+  }
+}
+
+
+
+    hideModal(actionModal);
+
+    // Sync linked to-dos from action changes (db.js provides helper)
+    if (saved?.id) await window.DB.syncTodosFromAction(saved.id);
+
+    await refreshProjectsAndActions(); // critical to fix “created action not showing”
+    await refreshTodoDetail();
+    await refreshDashboard();
+  });
+
+  btnDeleteAction?.addEventListener("click", async () => {
+    if (!editingActionId) return;
+    const ok = confirm("Delete this action?");
+    if (!ok) return;
+    await window.DB.deleteAction(editingActionId);
+    hideModal(actionModal);
+    await refreshProjectsAndActions();
+    await refreshTodoDetail();
+    await refreshDashboard();
+  });
+
+  btnRefreshActions?.addEventListener("click", refreshActionsUI);
+  actionSort?.addEventListener("change", refreshActionsUI);
+
+  async function refreshProjectsAndActions() {
+    // Projects list + modal project dropdown + filters
+    const projects = await getProjectsActive();
+    const allProjects = await window.DB.getAll(window.DB.STORES.projects);
+
+const archivedProjects = allProjects
+  .filter(p => !p._deleted && p.archived)
+  .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  
+
+
+    // Modal project select
+    await populateProjectSelect(modalActionProject, true);
+
+    // Build project filter panel for All Actions view
+    buildProjectFilterPanel(projects);
+
+    // Render project list
+    projectList.innerHTML = "";
+    archivedProjectList.innerHTML = "";
+    if (!projects.length) {
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="list__left"><div class="muted">No projects yet. Add one to organise actions.</div></div>`;
+      projectList.appendChild(li);
+      selectedProjectId = null;
+    } else {
+      if (!selectedProjectId) selectedProjectId = projects[0].id;
+
+      for (const p of projects) {
+  const li = document.createElement("li");
+  if (p.id === selectedProjectId) li.classList.add("active");
+  li.innerHTML = `
+    <div class="list__left">
+      <div class="titleClamp">
+        <div><strong>${escapeHtml(p.name)}</strong></div>
+        <div class="muted">Tap to view</div>
       </div>
-    </aside>
-
-    <!-- Notes list -->
-    <section class="notesContent">
-      <ul id="notesList" class="list notesList"></ul>
-    </section>
-
-  </div>
-</div>
-
-<!-- Mobile collections drawer -->
-<div id="notesCollectionsDrawer" class="notesDrawer hidden">
-  <div class="notesDrawerBackdrop" id="notesCollectionsBackdrop"></div>
-
-  <div class="notesDrawerPanel">
-    <div class="notesDrawerHeader">
-      <strong>Collections</strong>
-      <button id="btnCloseNotesDrawer" class="iconBtn">×</button>
     </div>
+    <div class="list__right"><span class="pill">Project</span></div>
+  `;
+  
 
-    <ul id="collectionListMobile" class="notesCollectionsList"></ul>
+  li.addEventListener("click", async () => {
+  selectedProjectId = p.id;
+  setActionsMode("projects");
 
-    <div class="notesDrawerActions">
-      <button id="btnAddCollectionMobile" class="btn btn--ghost">+ Collection</button>
-    </div>
-  </div>
-</div>
+  await refreshProjectsAndActions(); // 🔑 re-render list to update highlight
+  await refreshActionsForProject();
+  await loadProjectPane();
+});
 
-      </div>
 
-      <div id="notesDetailCard" class="card hidden">
-        <div class="cardHeader">
-          <button id="btnNotesBack" class="btn btn--ghost" type="button">Back</button>
-          <div class="cardTitle">Edit note</div>
-          <div class="cardActions">
-            <button id="btnDeleteNote" class="btn btn--ghost" type="button">Delete</button>
+  /// Archive / Unarchive button
+const archiveBtn = document.createElement("button");
+archiveBtn.type = "button";
+archiveBtn.className = "btn btn--ghost";
+archiveBtn.textContent = "Archive";
+
+archiveBtn.addEventListener("click", async (ev) => {
+  ev.stopPropagation();
+
+  const ok = await confirmInApp({
+  title: "Archive project",
+  message: "Archive this project?\n\nIts actions and notes will be hidden but not deleted."
+});
+if (!ok) return;
+
+  if (!ok) return;
+
+  await window.DB.archiveProject(p.id);
+
+  // Clear selection if needed
+  if (selectedProjectId === p.id) {
+    selectedProjectId = null;
+  }
+
+  await refreshProjectsAndActions();
+  await refreshActionsUI();
+  await refreshTodoDetail();
+  await refreshDashboard();
+});
+
+
+// Delete button (cascades to actions and todos)
+const delBtn = document.createElement("button");
+delBtn.type = "button";
+delBtn.className = "iconBtn";
+delBtn.title = "Delete project";
+delBtn.textContent = "🗑";
+
+delBtn.addEventListener("click", async (ev) => {
+  ev.stopPropagation(); // prevent triggering li click
+  const ok = await confirmInApp({
+  title: "Delete project",
+  message: "Delete this project and all its actions?"
+});
+if (!ok) return;
+
+  if (!ok) return;
+
+  await window.DB.deleteProject(p.id);
+
+  // Clear selected project to avoid dangling state
+  if (selectedProjectId === p.id) {
+    selectedProjectId = null;
+  }
+
+  await refreshProjectsAndActions();
+  await refreshActionsUI();
+  await refreshTodoDetail();
+  await refreshDashboard();
+});
+
+
+// Attach buttons to the right side
+const right = li.querySelector(".list__right");
+right?.appendChild(archiveBtn);
+right?.appendChild(delBtn);
+
+
+  // Append the li to the project list
+  projectList.appendChild(li);
+}
+
+
+
+    }
+
+// Render archived projects (collapsed by default)
+if (archivedProjectsVisible) {
+  if (!archivedProjects.length) {
+    const li = document.createElement("li");
+    li.innerHTML = `<div class="list__left"><div class="muted">No archived projects.</div></div>`;
+    archivedProjectList.appendChild(li);
+  } else {
+    for (const p of archivedProjects) {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <div class="list__left">
+          <div class="titleClamp">
+            <div><strong>${escapeHtml(p.name)}</strong></div>
+            <div class="muted">Archived</div>
           </div>
         </div>
+        <div class="list__right"></div>
+      `;
 
-        <div class="field">
-          <label>Title</label>
-          <input id="noteTitle" class="input" />
-          <div class="noteMeta">
-  <select id="noteCollectionSelect"></select>
-  <select id="noteProjectSelect"></select>
-</div>
+      const unarchiveBtn = document.createElement("button");
+      unarchiveBtn.type = "button";
+      unarchiveBtn.className = "btn btn--ghost";
+      unarchiveBtn.textContent = "Unarchive";
 
-        </div>
+      unarchiveBtn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        await window.DB.unarchiveProject(p.id);
 
-        <div class="field">
-          <label>Body</label>
-          <div class="noteMeta">
-    </label>
-</div>
-<div class="richToolbar">
-  <button type="button" data-cmd="bold"><b>B</b></button>
-  <button type="button" data-cmd="italic"><i>I</i></button>
-  <button type="button" data-cmd="underline"><u>U</u></button>
-  <button type="button" data-cmd="insertUnorderedList">• List</button>
-  <button type="button" data-cmd="insertOrderedList">1. List</button>
-</div>
+        archivedProjectsVisible = false;
+        archivedProjectList.classList.add("hidden");
+        btnToggleArchivedProjects.textContent = "Show archived projects";
 
-<div
-  id="noteBody"
-  class="textarea richText autosize"
-  contenteditable="true">
-</div>        </div>
+        await refreshProjectsAndActions();
+        await refreshActionsUI();
+        await refreshDashboard();
+      });
 
-        <div class="muted">
-          Created: <span id="noteCreated">—</span> • Edited: <span id="noteUpdated">—</span>
-        </div>
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "iconBtn";
+      delBtn.textContent = "🗑";
+      delBtn.title = "Delete project";
 
-        <button id="btnSaveNote" class="btn btn--ghost hidden" type="button">Save</button>
-      </div>
-    </section>
+      delBtn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const ok = confirm("Delete this archived project and all its actions?");
+        if (!ok) return;
 
-    <section id="view-goals" class="view hidden">
-  <div class="card">
-    <div class="cardHeader">
-      <div class="segmented">
-        <button id="goalsViewLong" class="segBtn" aria-pressed="true">Long-term</button>
-        <button id="goalsViewAnnual" class="segBtn">Annual</button>
-        <button id="goalsViewMonthly" class="segBtn">Monthly</button>
-      </div>
-      <div class="cardActions">
-        <button id="btnAddGoalPeriod" class="btn btn--primary">+</button>
-      </div>
-    </div>
+        await window.DB.deleteProject(p.id);
 
-    <div id="goalsIndexWrap"></div>
-    <div id="goalsDetailWrap" class="hidden"></div>
+        await refreshProjectsAndActions();
+        await refreshActionsUI();
+        await refreshDashboard();
+      });
+
+      li.querySelector(".list__right").appendChild(unarchiveBtn);
+      li.querySelector(".list__right").appendChild(delBtn);
+
+      archivedProjectList.appendChild(li);
+    }
+  }
+}
+    await loadProjectPane();
+    await refreshActionsUI();
+    await refreshActionsForProject();
+  }
+
+  async function loadProjectPane() {
+    projectNotesWrap?.classList.add("hidden");
+btnToggleProjectNotes.textContent = "Show project notes";
+
+// Reset collapsible sections when switching projects
+if (loadProjectPane._lastProject !== selectedProjectId) {
+  projectActionsWrap?.classList.add("hidden");
+  btnToggleProjectActions.textContent = "Show actions";
+
+  projectLinkedNotesWrap?.classList.add("hidden");
+  btnToggleProjectNotesLinked.textContent = "Show linked notes";
+}
+
+loadProjectPane._lastProject = selectedProjectId;
+
+
+
+
+
+    if (!selectedProjectId) {
+      if (projectTitle) projectTitle.textContent = "Project";
+      if (projectMeta) projectMeta.textContent = "—";
+      if (projectNotes) projectNotes.value = "";
+      return;
+    }
+    const p = await window.DB.getOne(window.DB.STORES.projects, selectedProjectId);
+    if (!p || p._deleted) return;
+
+    if (projectTitle) projectTitle.textContent = p.name || "Project";
+    if (projectMeta) projectMeta.textContent = `Created: ${p.createdAt ? new Date(p.createdAt).toLocaleDateString() : "—"}`;
+    if (projectNotes) {
+      projectNotes.value = p.notes || "";
+      autosizeTextarea(projectNotes);
+    }
+  }
+
+  // Autosave project notes
+  projectNotes?.addEventListener("input", () => {
+    autosizeTextarea(projectNotes);
+    debounce("project_notes_autosave", 300, async () => {
+      if (!selectedProjectId) return;
+      await window.DB.updateProject(selectedProjectId, { notes: projectNotes.value || "" });
+    });
+  });
+
+  async function refreshActionsUI() {
+    const projects = (await window.DB.getAll(window.DB.STORES.projects))
+  .filter(p => !p._deleted && !p.archived);
+    let actions = (await window.DB.getAll(window.DB.STORES.actions)).filter(a => !a._deleted);
+
+    const projName = (id) => projects.find(p => p.id === id)?.name || "—";
+
+    const prioSet = filterState.actionsPriority;
+    const statusSet = filterState.actionsStatus;
+    const projSel = filterState.actionsProject;
+
+    const archivedProjectIds = new Set(
+  (await window.DB.getAll(window.DB.STORES.projects))
+    .filter(p => p.archived)
+    .map(p => p.id)
+);
+
+actions = actions.filter(a => !archivedProjectIds.has(a.projectId));
+
+
+    let filtered = actions.filter(a => statusSet.has(a.status || "Open"));
+    filtered = filtered.filter(a => prioSet.has(a.priority || "Medium"));
+
+    // Project filter logic:
+    // If "__ALL__" selected, accept all; otherwise accept selected ids and/or none
+    if (!projSel.has("__ALL__")) {
+      const allowNone = projSel.has("__NONE__");
+      const allowIds = new Set(Array.from(projSel).filter(x => x !== "__NONE__" && x !== "__ALL__"));
+      filtered = filtered.filter(a => {
+        if (!a.projectId) return allowNone;
+        return allowIds.has(a.projectId);
+      });
+    }
+
+    const sortMode = actionSort?.value || "dueAsc";
+
+    filtered.sort((a, b) => {
+  // 🔑 Completed items always last
+  const aDone = a.status === "Completed";
+  const bDone = b.status === "Completed";
+  if (aDone !== bDone) return aDone ? 1 : -1;
+
+  // Priority
+  const prio =
+    prioRank(b.priority || "Medium") -
+    prioRank(a.priority || "Medium");
+  if (prio !== 0) return prio;
+
+  // Status (Open > In Progress)
+  const statusRank = s =>
+    s === "In Progress" ? 2 :
+    s === "Open" ? 1 : 0;
+
+  const status =
+    statusRank(b.status || "Open") -
+    statusRank(a.status || "Open");
+  if (status !== 0) return status;
+
+  // Due date (earliest first)
+  const da = a.dueDate || "9999-99-99";
+  const db = b.dueDate || "9999-99-99";
+  if (da !== db) return da.localeCompare(db);
+
+  // Created date (newest first)
+  return (b.createdAt || 0) - (a.createdAt || 0);
+});
+
+
+
+
+    actionList.innerHTML = "";
+    if (!filtered.length) {
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="list__left"><div class="muted">No actions match the current filters.</div></div>`;
+      actionList.appendChild(li);
+      return;
+    }
+
+    for (const a of filtered) {
+      const li = document.createElement("li");
+
+      const left = document.createElement("div");
+      left.className = "list__left";
+
+      const due = a.dueDate ? isoToDDMMYYYY(a.dueDate) : "—";
+
+      const title = document.createElement("div");
+      title.className = "titleClamp";
+      title.innerHTML = `
+        <div><strong>${escapeHtml(a.title)}</strong></div>
+        <div class="muted">Project: ${escapeHtml(projName(a.projectId))} • Deadline: ${escapeHtml(due)}</div>
+      `;
+      left.appendChild(title);
+
+      const right = document.createElement("div");
+      right.className = "list__right";
+
+      if (typeof a.notes === "string" && a.notes.trim().length > 0) {
+  const note = document.createElement("div");
+  note.className = "notesIcon";
+  note.title = "Has notes";
+  note.textContent = "✎";
+  right.appendChild(note);
+}
+
+// SEND TO TODAY button
+const today = todayStrISO();
+const todosToday = (await window.DB.getAll(window.DB.STORES.todos))
+  .some(t => !t._deleted && t.actionId === a.id && t.date === today);
+
+if (!todosToday && a.status !== "Completed") {
+  const btnSend = document.createElement("button");
+  btnSend.type = "button";
+  btnSend.className = "btn btn--ghost";
+  btnSend.textContent = "Send to today";
+
+  btnSend.addEventListener("click", async (ev) => {
+    ev.stopPropagation();
+    btnSend.disabled = true;
+btnSend.remove();
+    await window.DB.ensureTodoList(today);
+    await window.DB.upsertTodo({
+      date: today,
+      text: a.title,
+      status: "Open",
+      priority: a.priority || "Medium",
+      notes: a.notes || "",
+      dueDate: a.dueDate || "",
+      projectId: a.projectId || null,
+      actionId: a.id
+    });
+    await refreshTodoDetail();
+    await refreshActionsForProject();
+    await refreshDashboard();
+  });
+
+  right.appendChild(btnSend);
+}
+
+
+      const prio = document.createElement("div");
+      prio.className = `prioDot ${prioClass(a.priority || "Medium")}`;
+      prio.title = `Priority: ${a.priority || "Medium"}`;
+
+      const statusBtn = document.createElement("button");
+      statusBtn.type = "button";
+      statusBtn.className = `statusBtn ${statusClass(a.status || "Open")}`;
+      statusBtn.textContent = a.status || "Open";
+
+      right.appendChild(prio);
+      right.appendChild(statusBtn);
+
+      li.appendChild(left);
+      li.appendChild(right);
+
+      prio.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const next = cyclePriority(a.priority || "Medium");
+        await window.DB.updateAction(a.id, { priority: next });
+        await window.DB.syncTodosFromAction(a.id);
+        await refreshActionsUI();
+        await refreshTodoDetail();
+      });
+
+      statusBtn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const next = cycleStatus(a.status || "Open");
+        await window.DB.updateAction(a.id, { status: next });
+        await window.DB.syncTodosFromAction(a.id);
+        await refreshActionsUI();
+        await refreshTodoDetail();
+        await refreshDashboard();
+      });
+
+      const delBtn = document.createElement("button");
+delBtn.type = "button";
+delBtn.className = "iconBtn";
+delBtn.title = "Delete action";
+delBtn.textContent = "🗑";
+
+delBtn.addEventListener("click", async (ev) => {
+  ev.stopPropagation();
+  const ok = await confirmInApp({
+  title: "Delete action",
+  message: "Delete this action and all linked to-dos?"
+});
+if (!ok) return;
+
+  if (!ok) return;
+
+  await window.DB.deleteAction(a.id);
+  await refreshActionsUI();
+  await refreshTodoDetail();
+  await refreshDashboard();
+});
+
+right.appendChild(delBtn);
+
+
+      li.addEventListener("click", () => openActionModal(a.id));
+      actionList.appendChild(li);
+    }
+  }
+
+  async function refreshActionsForProject() {
+    let actions = (await window.DB.getAll(window.DB.STORES.actions)).filter(a => !a._deleted);
+
+    const prioSet = filterState.projectPriority;
+    const statusSet = filterState.projectStatus;
+
+    const archivedProjectIds = new Set(
+  (await window.DB.getAll(window.DB.STORES.projects))
+    .filter(p => p.archived)
+    .map(p => p.id)
+);
+
+actions = actions.filter(a => !archivedProjectIds.has(a.projectId));
+
+
+    let filtered = actions.filter(a => statusSet.has(a.status || "Open"));
+    filtered = filtered.filter(a => prioSet.has(a.priority || "Medium"));
+
+    if (selectedProjectId) filtered = filtered.filter(a => a.projectId === selectedProjectId);
+
+    const sortMode = actionSort2?.value || "dueAsc";
+    filtered.sort((a, b) => {
+  // 🔑 Completed items always last
+  const aDone = a.status === "Completed";
+  const bDone = b.status === "Completed";
+  if (aDone !== bDone) return aDone ? 1 : -1;
+
+  // Priority
+  const prio =
+    prioRank(b.priority || "Medium") -
+    prioRank(a.priority || "Medium");
+  if (prio !== 0) return prio;
+
+  // Status (Open > In Progress)
+  const statusRank = s =>
+    s === "In Progress" ? 2 :
+    s === "Open" ? 1 : 0;
+
+  const status =
+    statusRank(b.status || "Open") -
+    statusRank(a.status || "Open");
+  if (status !== 0) return status;
+
+  // Due date (earliest first)
+  const da = a.dueDate || "9999-99-99";
+  const db = b.dueDate || "9999-99-99";
+  if (da !== db) return da.localeCompare(db);
+
+  // Created date (newest first)
+  return (b.createdAt || 0) - (a.createdAt || 0);
+});
+
+
+
+
+    actionList2.innerHTML = "";
+    if (!filtered.length) {
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="list__left"><div class="muted">No actions for this project (with current filters).</div></div>`;
+      actionList2.appendChild(li);
+      return;
+    }
+
+    for (const a of filtered) {
+      const li = document.createElement("li");
+
+      const left = document.createElement("div");
+      left.className = "list__left";
+      const due = a.dueDate ? isoToDDMMYYYY(a.dueDate) : "—";
+
+      const title = document.createElement("div");
+      title.className = "titleClamp";
+      title.innerHTML = `
+        <div><strong>${escapeHtml(a.title)}</strong></div>
+        <div class="muted">Deadline: ${escapeHtml(due)}</div>
+      `;
+      left.appendChild(title);
+
+      const right = document.createElement("div");
+      right.className = "list__right";
+
+      if (typeof a.notes === "string" && a.notes.trim().length > 0) {
+  const note = document.createElement("div");
+  note.className = "notesIcon";
+  note.title = "Has notes";
+  note.textContent = "✎";
+  right.appendChild(note);
+}
+
+      const prio = document.createElement("div");
+      prio.className = `prioDot ${prioClass(a.priority || "Medium")}`;
+      prio.title = `Priority: ${a.priority || "Medium"}`;
+
+      const statusBtn = document.createElement("button");
+      statusBtn.type = "button";
+      statusBtn.className = `statusBtn ${statusClass(a.status || "Open")}`;
+      statusBtn.textContent = a.status || "Open";
+
+      right.appendChild(prio);
+      right.appendChild(statusBtn);
+
+      li.appendChild(left);
+      li.appendChild(right);
+
+      prio.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const next = cyclePriority(a.priority || "Medium");
+        await window.DB.updateAction(a.id, { priority: next });
+        await window.DB.syncTodosFromAction(a.id);
+        await refreshActionsForProject();
+        await refreshTodoDetail();
+      });
+
+      statusBtn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const next = cycleStatus(a.status || "Open");
+        await window.DB.updateAction(a.id, { status: next });
+        await window.DB.syncTodosFromAction(a.id);
+        await refreshActionsForProject();
+        await refreshTodoDetail();
+        await refreshDashboard();
+      });
+
+      li.addEventListener("click", () => openActionModal(a.id));
+      actionList2.appendChild(li);
+    }
+  }
+
+  /* ---------------------------------------------------------
+     Habits
+     - Daily view removed (weekly/monthly only)
+     - Monthly aggregate: orange if some, green if all
+  --------------------------------------------------------- */
+
+  let habitTrackMode = "weekly";
+
+  function setHabitTrackMode(mode) {
+    habitTrackMode = mode;
+    setPressed(habitViewWeekly, mode === "weekly");
+    setPressed(habitViewMonthly, mode === "monthly");
+
+    habitWeeklyWrap?.classList.toggle("hidden", mode !== "weekly");
+habitMonthlyWrap?.classList.toggle("hidden", mode !== "monthly");
+
+// 🔑 SHOW habit filter ONLY in monthly view
+monthlyHabitSelectWrap?.classList.toggle("hidden", mode !== "monthly");
+
+refreshHabitTrack();
+
+
+  }
+
+  habitViewWeekly?.addEventListener("click", () => setHabitTrackMode("weekly"));
+  habitViewMonthly?.addEventListener("click", () => setHabitTrackMode("monthly"));
+
+  habitRefDate?.addEventListener("change", refreshHabitTrack);
+  
+  btnAddHabit?.addEventListener("click", async () => {
+    const name = (habitName.value || "").trim();
+    if (!name) return;
+    const freq = habitFreq.value || "Daily";
+    await window.DB.upsertHabit({ name, frequency: freq, archived: false });
+    habitName.value = "";
+    await refreshHabits();
+    await refreshHabitTrack();
+    await refreshDashboard();
+  });
+
+  habitName?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      btnAddHabit.click();
+    }
+  });
+
+  btnToggleHabits?.addEventListener("click", () => {
+  habitsHidden = !habitsHidden;
+
+  // Hide/show ONLY the habits lists pane
+  habitsListsWrap.classList.toggle("hidden", habitsHidden);
+
+  // Update button text
+  btnToggleHabits.textContent = habitsHidden
+    ? "Show habits"
+    : "Hide habits";
+});
+
+
+
+  btnRefreshHabits?.addEventListener("click", async () => {
+    await refreshHabits();
+    await refreshHabitTrack();
+    await refreshDashboard();
+  });
+
+  async function refreshHabits() {
+    const all = await window.DB.getAll(window.DB.STORES.habits);
+    const active = all.filter(h => !h._deleted && !h.archived).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    const archived = all.filter(h => !h._deleted && !!h.archived).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+    habitList.innerHTML = "";
+    habitList.classList.toggle("hidden", habitsHidden);
+    habitArchivedList.innerHTML = "";
+
+monthlyHabitSelect.innerHTML = "";
+
+const defaultOpt = document.createElement("option");
+defaultOpt.value = "";
+defaultOpt.textContent = "All habits";
+monthlyHabitSelect.appendChild(defaultOpt);
+    for (const h of active) {
+      const opt = document.createElement("option");
+      opt.value = h.id;
+      opt.textContent = `${h.name} (${h.frequency})`;
+      monthlyHabitSelect.appendChild(opt);
+    }
+
+
+    if (!active.length) {
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="list__left"><div class="muted">No active habits. Add one above.</div></div>`;
+      habitList.appendChild(li);
+    } else {
+      for (const h of active) {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <div class="list__left">
+            <div>
+              <div><strong>${escapeHtml(h.name)}</strong></div>
+              <div class="muted">${escapeHtml(h.frequency)}</div>
+            </div>
+          </div>
+          <div class="list__right">
+<button class="btn btn--ghost" type="button" data-action="archive">Archive</button>
+<button class="iconBtn" type="button" data-action="delete" title="Delete habit">×</button>
+          </div>
+        `;
+        const archiveBtn = li.querySelector('[data-action="archive"]');
+const deleteBtn = li.querySelector('[data-action="delete"]');
+
+archiveBtn.addEventListener("click", async (ev) => {
+  ev.stopPropagation();
+  await window.DB.updateHabit(h.id, { archived: true });
+  await refreshHabits();
+  await refreshHabitTrack();
+  await refreshDashboard();
+});
+
+deleteBtn.addEventListener("click", async (ev) => {
+  ev.stopPropagation();
+
+  const ok = await confirmInApp({
+    title: "Delete habit",
+    message: "Delete this habit and all its history?"
+  });
+  if (!ok) return;
+
+  await window.DB.deleteHabit(h.id);
+  await refreshHabits();
+  await refreshHabitTrack();
+  await refreshDashboard();
+});
+
+        habitList.appendChild(li);
+      }
+    }
+
+    if (!archived.length) {
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="list__left"><div class="muted">No archived habits.</div></div>`;
+      habitArchivedList.appendChild(li);
+    } else {
+      for (const h of archived) {
+        const li = document.createElement("li");
+        li.innerHTML = `
+          <div class="list__left">
+            <div>
+              <div><strong>${escapeHtml(h.name)}</strong></div>
+              <div class="muted">${escapeHtml(h.frequency)}</div>
+            </div>
+          </div>
+          <div class="list__right">
+<button class="btn btn--ghost" type="button" data-action="unarchive">Unarchive</button>
+<button class="iconBtn" type="button" data-action="delete" title="Delete habit">🗑</button>
+          </div>
+        `;
+        const unarchiveBtn = li.querySelector('[data-action="unarchive"]');
+const deleteBtn = li.querySelector('[data-action="delete"]');
+
+unarchiveBtn.addEventListener("click", async (ev) => {
+  ev.stopPropagation();
+  await window.DB.updateHabit(h.id, { archived: false });
+  await refreshHabits();
+  await refreshHabitTrack();
+  await refreshDashboard();
+});
+
+deleteBtn.addEventListener("click", async (ev) => {
+  ev.stopPropagation();
+
+  const ok = await confirmInApp({
+    title: "Delete habit",
+    message: "Delete this habit and all its history?"
+  });
+  if (!ok) return;
+
+  await window.DB.deleteHabit(h.id);
+  await refreshHabits();
+  await refreshHabitTrack();
+  await refreshDashboard();
+});
+
+        habitArchivedList.appendChild(li);
+      }
+    }
+  }
+
+  async function refreshHabitTrack() {
+    if (!habitRefDate.value) habitRefDate.value = todayStrISO();
+
+    const ref = parseISO(habitRefDate.value);
+    const habitsAll = await window.DB.getAll(window.DB.STORES.habits);
+    const habits = habitsAll.filter(h => !h._deleted && !h.archived).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    const completionsAll = await window.DB.getAll(window.DB.STORES.habitCompletions);
+    const completions = completionsAll.filter(c => !c._deleted);
+
+    if (habitTrackMode === "weekly") renderHabitWeekly(habits, completions, ref);
+    else renderHabitMonthly(habits, completions, ref);
+
+  }
+
+  function isTicked(completions, habitId, dateISO) {
+    return completions.some(c => c.habitId === habitId && c.date === dateISO && !c._deleted);
+  }
+
+  async function toggleTick(habitId, dateISO) {
+    const all = await window.DB.getAll(window.DB.STORES.habitCompletions);
+    const existing = all.find(c => !c._deleted && c.habitId === habitId && c.date === dateISO) || null;
+
+    if (existing) await window.DB.deleteHabitCompletion(existing.id);
+    else await window.DB.upsertHabitCompletion({ habitId, date: dateISO });
+
+    await refreshHabitTrack();
+    await refreshDashboard();
+  }
+
+  function renderHabitWeekly(habits, completions, refDate) {
+    habitWeeklyWrap.innerHTML = "";
+    if (!habits.length) {
+      habitWeeklyWrap.innerHTML = `<div class="muted">No active habits.</div>`;
+      return;
+    }
+
+    const start = startOfWeek(refDate);
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      days.push(d);
+    }
+
+    const grid = document.createElement("div");
+    grid.className = "habitGrid--weekly";
+
+    const head0 = document.createElement("div");
+    head0.className = "cell head";
+    head0.textContent = "Habit";
+    grid.appendChild(head0);
+
+    const names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    for (let i = 0; i < 7; i++) {
+      const c = document.createElement("div");
+      c.className = "cell head";
+      // Requested: weekday name and date stacked
+      c.innerHTML = `<div>${names[i]}</div><div class="small">${ddmmyyyyForDate(days[i])}</div>`;
+      grid.appendChild(c);
+    }
+
+    for (const h of habits) {
+      const r0 = document.createElement("div");
+      r0.className = "cell";
+      r0.innerHTML = `<div><strong>${escapeHtml(h.name)}</strong></div><div class="small">${escapeHtml(h.frequency)}</div>`;
+      grid.appendChild(r0);
+
+      for (const d of days) {
+        const ds = dateToISO(d);
+        const ticked = isTicked(completions, h.id, ds);
+        const cell = document.createElement("div");
+        cell.className = "cell " + (ticked ? "done" : "");
+        cell.textContent = ticked ? "✓" : "";
+        cell.title = ddmmyyyyForDate(d);
+        cell.addEventListener("click", () => toggleTick(h.id, ds));
+        grid.appendChild(cell);
+      }
+    }
+
+    habitWeeklyWrap.appendChild(grid);
+  }
+
+  function renderHabitMonthly(habits, completions, refDate) {
+    habitMonthlyWrap.innerHTML = "";
+    if (!habits.length) {
+      habitMonthlyWrap.innerHTML = `<div class="muted">No active habits.</div>`;
+      return;
+    }
+
+    const year = refDate.getFullYear();
+    const month = refDate.getMonth();
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    const daysInMonth = last.getDate();
+
+const mode = monthlyHabitSelect?.value ? "byHabit" : "aggregate";
+
+    const makeCell = (txt, cls) => {
+      const c = document.createElement("div");
+      c.className = "cell " + (cls || "");
+      c.textContent = txt;
+      return c;
+    };
+
+    const grid = document.createElement("div");
+    grid.className = "grid grid--month";
+
+    const weekHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    for (const wh of weekHeaders) grid.appendChild(makeCell(wh, "head"));
+
+    const jsDay = first.getDay();
+    const offset = (jsDay === 0 ? 6 : jsDay - 1);
+    for (let i = 0; i < offset; i++) grid.appendChild(makeCell("", "off"));
+
+    if (mode === "byHabit") {
+      const habitId = monthlyHabitSelect.value || habits[0].id;
+      if (!monthlyHabitSelect.value) monthlyHabitSelect.value = habitId;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const d = new Date(year, month, day);
+        const ds = dateToISO(d);
+        const ticked = isTicked(completions, habitId, ds);
+        const cell = makeCell(String(day), ticked ? "done" : "");
+        cell.title = ddmmyyyyForDate(d);
+        cell.addEventListener("click", () => toggleTick(habitId, ds));
+        grid.appendChild(cell);
+      }
+
+      habitMonthlyWrap.appendChild(grid);
+      return;
+    }
+
+    // Aggregate mode: green if all, orange if some, blank if none
+    for (let day = 1; day <= daysInMonth; day++) {
+      const d = new Date(year, month, day);
+      const ds = dateToISO(d);
+
+      const tickedCount = habits.reduce((acc, h) => acc + (isTicked(completions, h.id, ds) ? 1 : 0), 0);
+      const allDone = tickedCount === habits.length && habits.length > 0;
+      const someDone = tickedCount > 0 && tickedCount < habits.length;
+
+      const cls = allDone ? "done" : (someDone ? "partial" : "");
+      const cell = makeCell(String(day), cls);
+      cell.title = `${ddmmyyyyForDate(d)} (${tickedCount}/${habits.length})`;
+
+      cell.addEventListener("click", async () => {
+        const all = await window.DB.getAll(window.DB.STORES.habitCompletions);
+        const existing = all.filter(c => !c._deleted && c.date === ds);
+
+        if (allDone) {
+          for (const h of habits) {
+            const ex = existing.find(c => c.habitId === h.id) || null;
+            if (ex) await window.DB.deleteHabitCompletion(ex.id);
+          }
+        } else {
+          for (const h of habits) {
+            const ex = existing.find(c => c.habitId === h.id) || null;
+            if (!ex) await window.DB.upsertHabitCompletion({ habitId: h.id, date: ds });
+          }
+        }
+
+        await refreshHabitTrack();
+        await refreshDashboard();
+      });
+
+      grid.appendChild(cell);
+    }
+
+    habitMonthlyWrap.appendChild(grid);
+  }
+
+  /* ---------------------------------------------------------
+     Meals
+     - Fix overflow handled by CSS; weekly wrap scrollable
+     - Daily header: weekday + date stacked
+     - Click a meal to edit notes in mealModal
+  --------------------------------------------------------- */
+
+  async function openMealPicker(dateISO, slot) {
+  mealPickerContext = { dateISO, slot };
+
+  const meals = (await window.DB.getAll(window.DB.STORES.meals))
+    .filter(m => !m._deleted)
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  mealPickerList.innerHTML = "";
+
+  if (!meals.length) {
+    mealPickerList.innerHTML =
+      `<li><div class="muted">No meals yet.</div></li>`;
+  } else {
+    for (const m of meals) {
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="list__left"><strong>${escapeHtml(m.name)}</strong></div>`;
+
+      li.addEventListener("click", async () => {
+        await setMealPlan(dateISO, slot, m.id);
+        hideModal(mealPickerModal);
+        mealPickerContext = null;
+      });
+
+      mealPickerList.appendChild(li);
+    }
+  }
+
+  showModal(mealPickerModal);
+}
+
+
+  let mealMode = "daily";
+
+  function setMealMode(mode) {
+    mealMode = mode;
+    setPressed(mealViewDaily, mode === "daily");
+    setPressed(mealViewWeekly, mode === "weekly");
+    mealDailyWrap?.classList.toggle("hidden", mode !== "daily");
+    mealWeeklyWrap?.classList.toggle("hidden", mode !== "weekly");
+    refreshMeals();
+  }
+
+  mealViewDaily?.addEventListener("click", () => setMealMode("daily"));
+  mealViewWeekly?.addEventListener("click", () => setMealMode("weekly"));
+
+  btnAddMeal?.addEventListener("click", async () => {
+    const name = (mealNewName.value || "").trim();
+    if (!name) return;
+    await window.DB.upsertMeal({ name, notes: "" });
+    mealNewName.value = "";
+    await refreshMeals();
+  });
+
+  mealNewName?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      btnAddMeal.click();
+    }
+  });
+
+  btnRefreshMeals?.addEventListener("click", refreshMeals);
+  btnToggleMeals?.addEventListener("click", () => {
+  mealsListHidden = !mealsListHidden;
+
+  // Hide/show the entire meal list column (including header)
+  const listColumn = mealsWrap?.children?.[0];
+  if (listColumn) {
+    listColumn.classList.toggle("hidden", mealsListHidden);
+  }
+
+  // Adjust layout so planner fills space
+  mealsWrap.classList.toggle("twoCol", !mealsListHidden);
+  mealsWrap.classList.toggle("stack", mealsListHidden);
+
+  btnToggleMeals.textContent = mealsListHidden
+    ? "Show meal list"
+    : "Hide meal list";
+});
+
+
+  mealRefDate?.addEventListener("change", refreshMeals);
+
+  function slotLabel(s) {
+    return ({ breakfast: "Breakfast", lunch: "Lunch", snack: "Snack", dinner: "Dinner" }[s] || s);
+  }
+
+  function weekDaysFrom(refISO) {
+    const ref = parseISO(refISO);
+    const start = startOfWeek(ref);
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  }
+
+  async function refreshMeals() {
+    if (!mealRefDate.value) mealRefDate.value = todayStrISO();
+
+    const meals = (await window.DB.getAll(window.DB.STORES.meals)).filter(m => !m._deleted).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    const plans = (await window.DB.getAll(window.DB.STORES.mealPlans)).filter(p => !p._deleted);
+
+    mealList.innerHTML = "";
+    mealsWrap.classList.toggle("twoCol", !mealsListHidden);
+mealsWrap.classList.toggle("stack", mealsListHidden);
+    for (const m of meals) {
+      const row = document.createElement("div");
+      row.className = "mealRow";
+      row.draggable = true;
+      row.dataset.mealId = m.id;
+      row.innerHTML = `
+        <div class="mealPill" title="Click to edit notes">${escapeHtml(m.name)}</div>
+        <button class="btn btn--ghost" type="button">Delete</button>
+      `;
+      row.addEventListener("dragstart", (ev) => {
+        ev.dataTransfer.setData("text/plain", m.id);
+      });
+      row.querySelector("button").addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        await window.DB.deleteMeal(m.id);
+        await refreshMeals();
+      });
+      // Click to edit meal notes
+      row.querySelector(".mealPill").addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        await openMealModal(m.id);
+      });
+      mealList.appendChild(row);
+    }
+
+    if (mealMode === "daily") {
+      renderMealDaily(plans, meals, mealRefDate.value);
+    } else {
+      renderMealWeekly(plans, meals, mealRefDate.value);
+    }
+  }
+
+  function findPlan(plans, dateISO, slot) {
+  const p = plans.find(
+    x => x.date === dateISO && x.slot === slot && !x._deleted
+  );
+  if (!p) return null;
+
+  // 🔑 Backward compatibility: old single-meal plans
+  if (!Array.isArray(p.mealIds)) {
+    p.mealIds = p.mealId ? [p.mealId] : [];
+  }
+
+  return p;
+}
+
+
+  async function setMealPlan(dateISO, slot, mealId) {
+  const plans = await window.DB.getAll(window.DB.STORES.mealPlans);
+  const existing = plans.find(
+    p => !p._deleted && p.date === dateISO && p.slot === slot
+  );
+
+  let mealIds = [];
+
+  if (existing) {
+    mealIds = Array.isArray(existing.mealIds)
+      ? [...existing.mealIds]
+      : existing.mealId
+        ? [existing.mealId]
+        : [];
+  }
+
+  // 🔑 Prevent duplicates
+  if (!mealIds.includes(mealId)) {
+    mealIds.push(mealId);
+  }
+
+  await window.DB.upsertMealPlan({
+    id: existing?.id,
+    date: dateISO,
+    slot,
+    mealIds
+  });
+
+  await refreshMeals();
+}
+
+
+  async function clearMealPlan(dateISO, slot) {
+    const all = await window.DB.getAll(window.DB.STORES.mealPlans);
+    const ex = all.find(p => !p._deleted && p.date === dateISO && p.slot === slot) || null;
+    if (ex) await window.DB.deleteMealPlan(ex.id);
+    await refreshMeals();
+  }
+
+  function dropZone(el, onDrop) {
+    el.addEventListener("dragover", (e) => { e.preventDefault(); });
+    el.addEventListener("drop", (e) => {
+      e.preventDefault();
+      const mealId = e.dataTransfer.getData("text/plain");
+      if (mealId) onDrop(mealId);
+    });
+  }
+
+  function renderMealDaily(plans, meals, dateISO) {
+    mealDailyWrap.innerHTML = "";
+    const slots = ["breakfast", "lunch", "snack", "dinner"];
+
+    const dObj = parseISO(dateISO);
+    const head = document.createElement("div");
+    head.className = "mealHead";
+    // Requested: weekday + date stacked
+    head.innerHTML = `<div><strong>${weekdayName(dObj)}</strong><div class="small">${ddmmyyyyForDate(dObj)}</div></div><div class="muted">Drag meals into slots</div>`;
+    mealDailyWrap.appendChild(head);
+
+    const grid = document.createElement("div");
+    grid.className = "mealGrid mealGrid--daily";
+
+    for (const s of slots) {
+      const cell = document.createElement("div");
+      cell.className = "mealSlot";
+
+      const existing = findPlan(plans, dateISO, s);
+      const mealNames = existing
+  ? existing.mealIds
+      .map(id => meals.find(m => m.id === id)?.name)
+      .filter(Boolean)
+  : [];
+
+
+      cell.innerHTML = `
+  <div class="mealSlotHead">
+    ${slotLabel(s)}
+    <button class="btn btn--ghost mealAddBtn" type="button">+</button>
   </div>
-</section>
 
-  </main>
-
-  <!-- Tabs menu -->
-  <div id="tabsMenu" class="menu hidden">
-    <div id="tabsMenuBackdrop" class="backdrop"></div>
-    <div class="menuCard">
-      <div class="menuTitle">Show/Hide tabs</div>
-      <div id="tabsMenuItems" class="menuItems"></div>
-      <button id="btnSaveTabsMenu" class="btn btn--primary" type="button">Save</button>
-    </div>
+  <div class="mealSlotBody ${mealNames.length ? "" : "empty"}">
+    ${mealNames.length
+      ? mealNames.map(n => `<span class="mealPill">${escapeHtml(n)}</span>`).join("")
+      : `<span class="muted">${isTouchDevice() ? "Tap +" : "Drop here"}</span>`}
   </div>
 
-  <!-- Theme modal -->
-  <div id="themeModal" class="modal hidden">
-    <div id="themeBackdrop" class="backdrop"></div>
-    <div class="modalCard">
-      <div class="modalHeader">
-  <div class="modalTitle">Theme & font</div>
-  <button id="btnCloseTheme" class="iconBtn" type="button">×</button>
-</div>
+  <button class="iconBtn" type="button" title="Clear">×</button>
+`;
 
 
+      const body = cell.querySelector(".mealSlotBody");
+      dropZone(body, (mealId) => setMealPlan(dateISO, s, mealId));
 
-      <div class="field">
-        <label>Theme</label>
-        <select id="themeSelect" class="select">
-  <option value="aurora">Aurora</option>
-  <option value="graphite">Graphite</option>
-  <option value="midnight">Midnight Blue</option>
-  <option value="slate">Slate</option>
-  <option value="forest">Forest</option>
-  <option value="olive">Olive</option>
-  <option value="beige">Beige</option>
-  <option value="sandstone">Sandstone</option>
-  <option value="white">White</option>
-  <option value="rose">Rose Quartz</option>
-</select>
+      // Mobile: + button to select meal
+if (isTouchDevice()) {
+  const addBtn = cell.querySelector(".mealAddBtn");
 
-      </div>
+  addBtn?.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  openMealPicker(dateISO, s);
+});
 
-      <div class="field">
-        <label>Font</label>
-        <select id="fontSelect" class="select">
-          <option value="system">System</option>
-          <option value="inter">Inter</option>
-          <option value="georgia">Georgia</option>
-          <option value="ibmplex">IBM Plex Sans</option>
-          <option value="mono">Monospace</option>
-        </select>
-      </div>
-
-      <button id="btnApplyTheme" class="btn btn--primary" type="button">Apply</button>
-    </div>
-  </div>
-
-  <!-- Settings modal -->
-  <div id="settingsModal" class="modal hidden">
-    <div id="settingsBackdrop" class="backdrop"></div>
-    <div class="modalCard">
-      <div class="modalHeader">
-        <div class="modalTitle">Settings</div>
-        <button id="btnCloseSettings" class="iconBtn" type="button">×</button>
-      </div>
-
-      <div class="field">
-        <label>Export JSON</label>
-        <button id="btnExport" class="btn" type="button">Export</button>
-        <textarea id="exportArea" class="textarea" rows="6" readonly></textarea>
-      </div>
-
-      <div class="field">
-        <label>Import JSON</label>
-        <input id="importFile" type="file" accept="application/json" />
-        <button id="btnImport" class="btn" type="button">Import</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Account modal -->
-  <div id="accountModal" class="modal hidden">
-    <div id="accountBackdrop" class="backdrop"></div>
-    <div class="modalCard">
-      <div class="modalHeader">
-        <div class="modalTitle">Account</div>
-        <button id="btnCloseAccount" class="iconBtn" type="button">×</button>
-      </div>
-
-      <div class="field">
-        <label>Email</label>
-        <input id="authEmail" class="input" autocomplete="username" />
-      </div>
-      <div class="field">
-        <label>Password</label>
-        <input id="authPassword" class="input" type="password" autocomplete="current-password" />
-      </div>
-
-      <div class="row">
-        <button id="btnSignIn" class="btn btn--primary" type="button">Sign in</button>
-        <button id="btnSignUp" class="btn" type="button">Sign up</button>
-        <button id="btnSignOut" class="btn btn--ghost" type="button">Sign out</button>
-      </div>
-
-      <div id="authStatus" class="muted">Not signed in.</div>
-    </div>
-  </div>
-
-  <!-- Export PDF modal -->
-  <div id="exportPdfModal" class="modal hidden">
-    <div id="exportPdfBackdrop" class="backdrop"></div>
-    <div class="modalCard">
-      <div class="modalHeader">
-        <div class="modalTitle">Export PDF</div>
-        <button id="btnCloseExportPdf" class="iconBtn" type="button">×</button>
-      </div>
-
-      <div class="checkRow"><label><input id="expTodo" type="checkbox" checked /> To-dos</label></div>
-      <div class="checkRow"><label><input id="expJournal" type="checkbox" checked /> Journal</label></div>
-      <div class="checkRow"><label><input id="expActions" type="checkbox" checked /> Projects & actions</label></div>
-      <div class="checkRow"><label><input id="expMeals" type="checkbox" checked /> Meals</label></div>
-      <div class="checkRow"><label><input id="expNotes" type="checkbox" checked /> Notes</label></div>
-      <div class="checkRow"><label><input id="expGoals" type="checkbox" checked /> Goals</label></div>
-
-      <button id="btnRunPdfExport" class="btn btn--primary" type="button">Export</button>
-    </div>
-  </div>
-
-  <!-- To-do new list modal -->
-  <div id="todoNewListModal" class="modal hidden">
-    <div id="todoNewListBackdrop" class="backdrop"></div>
-    <div class="modalCard">
-      <div class="modalHeader">
-        <div class="modalTitle">Create to-do list</div>
-        <button id="btnCloseTodoNewList" class="iconBtn" type="button">×</button>
-      </div>
-      <div class="field">
-        <label>Date</label>
-        <input id="todoNewListDate" class="input input--date" type="date" />
-      </div>
-      <button id="btnCreateTodoList" class="btn btn--primary" type="button">Create</button>
-    </div>
-  </div>
-
-  <!-- Journal new entry modal -->
-  <div id="journalNewEntryModal" class="modal hidden">
-    <div id="journalNewEntryBackdrop" class="backdrop"></div>
-    <div class="modalCard">
-      <div class="modalHeader">
-        <div class="modalTitle">Create journal entry</div>
-        <button id="btnCloseJournalNewEntry" class="iconBtn" type="button">×</button>
-      </div>
-      <div class="field">
-        <label>Date</label>
-        <input id="journalNewEntryDate" class="input input--date" type="date" />
-      </div>
-      <button id="btnCreateJournalEntry" class="btn btn--primary" type="button">Create</button>
-    </div>
-  </div>
-
-  <!-- Action modal -->
-  <div id="actionModal" class="modal hidden">
-    <div id="actionBackdrop" class="backdrop"></div>
-    <div class="modalCard">
-      <div class="modalHeader">
-        <div id="actionModalTitle" class="modalTitle">New action</div>
-        <button id="btnCloseActionModal" class="iconBtn" type="button">×</button>
-      </div>
-
-      <div class="field">
-        <label>Title</label>
-        <input id="modalActionTitle" class="input" />
-      </div>
-
-      <div class="field">
-        <label>Project</label>
-        <select id="modalActionProject" class="select"></select>
-      </div>
-
-      <div class="field">
-        <label>Due date</label>
-        <input id="modalActionDue" class="input input--date" type="date" />
-      </div>
-
-      <div class="field">
-        <label>Priority</label>
-        <select id="modalActionPriority" class="select">
-          <option>Low</option>
-          <option>Medium</option>
-          <option>High</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label>Status</label>
-        <select id="modalActionStatus" class="select">
-          <option>Open</option>
-          <option>In Progress</option>
-          <option>Completed</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label>Notes</label>
-        <textarea id="modalActionNotes" class="textarea autosize" rows="4"></textarea>
-      </div>
-
-      <div class="row">
-        <button id="btnSaveModalAction" class="btn btn--primary" type="button">Save</button>
-        <button id="btnDeleteAction" class="btn btn--ghost hidden" type="button">Delete</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Note edit modal -->
-<div id="noteModal" class="modal hidden">
-  <div class="backdrop" id="noteModalBackdrop"></div>
-
-  <div class="modalCard">
-    <div class="modalHeader">
-      <div class="modalTitle">Edit note</div>
-      <button id="btnCloseNoteModal" class="iconBtn" type="button">×</button>
-    </div>
-
-    <div class="field">
-      <label>Title</label>
-      <input id="modalNoteTitle" class="input" />
-    </div>
-
-    <div class="field">
-      <label>Body</label>
-      <textarea id="modalNoteBody" class="textarea autosize" rows="8"></textarea>
-    </div>
-  </div>
-</div>
+}
 
 
-  <!-- Meal modal -->
-  <div id="mealModal" class="modal hidden">
-    <div id="mealBackdrop" class="backdrop"></div>
-    <div class="modalCard">
-      <div class="modalHeader">
-        <div class="modalTitle">Meal</div>
-        <button id="btnCloseMealModal" class="iconBtn" type="button">×</button>
-      </div>
+      cell.querySelector('button.iconBtn[title="Clear"]')?.addEventListener("click", () => clearMealPlan(dateISO, s));
 
-      <div class="field">
-        <label>Name</label>
-        <input id="mealModalName" class="input" />
-      </div>
+      grid.appendChild(cell);
+    }
 
-      <div class="field">
-        <label>Notes</label>
-        <textarea id="mealModalNotes" class="textarea autosize" rows="6" placeholder="Ingredients, macros, prep notes…"></textarea>
-      </div>
+    mealDailyWrap.appendChild(grid);
+  }
 
-      <div class="row">
-        <button id="btnSaveMealModal" class="btn btn--primary" type="button">Save</button>
-        <button id="btnDeleteMealModal" class="btn btn--ghost" type="button">Delete</button>
-      </div>
-    </div>
-  </div>
+  function renderMealWeekly(plans, meals, refISO) {
+    mealWeeklyWrap.innerHTML = "";
 
-  <div id="collectionModal" class="modal hidden">
-  <div class="backdrop" id="collectionBackdrop"></div>
-  <div class="modalCard">
-    <div class="modalHeader">
-      <div class="modalTitle" id="collectionModalTitle">New collection</div>
-      <button class="iconBtn" id="btnCloseCollectionModal">×</button>
-    </div>
+    const days = weekDaysFrom(refISO);
+    const slots = ["breakfast", "lunch", "snack", "dinner"];
 
-    <div class="field">
-      <label for="collectionNameInput">Collection name</label>
-      <input id="collectionNameInput" class="input" type="text" />
-    </div>
+    const grid = document.createElement("div");
+    grid.className = "mealGrid mealGrid--weekly";
 
-    <div class="modalActions" style="display:flex; gap:8px; justify-content:flex-end">
-  <button class="btn btn--ghost" id="btnArchiveCollection">Archive</button>
-  <button class="btn btn--ghost" id="btnDeleteCollection">Delete</button>
-  <button class="btn btn--primary" id="btnSaveCollection">Save</button>
-</div>
+    const corner = document.createElement("div");
+    corner.className = "cell head";
+    corner.textContent = "Slot";
+    grid.appendChild(corner);
 
-  </div>
-</div>
+    for (let i = 0; i < 7; i++) {
+      const d = days[i];
+      const h = document.createElement("div");
+      h.className = "cell head";
+      // Requested: weekday + date stacked
+      h.innerHTML = `<div>${weekdayName(d)}</div><div class="small">${ddmmyyyyForDate(d)}</div>`;
+      grid.appendChild(h);
+    }
 
-<div id="projectModal" class="modal hidden">
-  <div class="backdrop" id="projectBackdrop"></div>
-  <div class="modalCard">
-    <div class="modalHeader">
-      <div class="modalTitle">New project</div>
-      <button class="iconBtn" id="btnCloseProjectModal">×</button>
-    </div>
+    for (const s of slots) {
+      const slotHead = document.createElement("div");
+      slotHead.className = "cell head";
+      slotHead.textContent = slotLabel(s);
+      grid.appendChild(slotHead);
 
-    <div class="field">
-      <label>Project name</label>
-      <input id="projectNameInput" class="input" />
-    </div>
-
-    <div class="field">
-      <label>Notes</label>
-      <textarea id="projectNotesInput" class="textarea autosize"></textarea>
-    </div>
-
-    <button class="btn btn--primary" id="btnSaveProject">Save</button>
-  </div>
-</div>
-
-<!-- Meal picker modal -->
-<div id="mealPickerModal" class="modal hidden">
-  <div class="backdrop" id="mealPickerBackdrop"></div>
-
-  <div class="modalCard">
-    <div class="modalHeader">
-      <div class="modalTitle">Select meal</div>
-      <button class="iconBtn" id="btnCloseMealPicker">×</button>
-    </div>
-
-    <div class="modalBody">
-  <ul id="mealPickerList" class="list"></ul>
-</div>
-
-  </div>
-</div>
+      for (let i = 0; i < 7; i++) {
+        const d = days[i];
+        const dateISO = dateToISO(d);
+        const existing = findPlan(plans, dateISO, s);
+        const mealNames = existing
+  ? existing.mealIds.map(id => meals.find(m => m.id === id)?.name).filter(Boolean)
+  : [];
 
 
-<!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
-<!-- Firebase init -->
-<script src="firebase.js"></script>
-
-<!-- Local DB + sync -->
-
-<!-- Confirm modal (generic) -->
-<div id="confirmModal" class="modal hidden">
-  <div class="backdrop" id="confirmBackdrop"></div>
-  <div class="modalCard">
-    <div class="modalHeader">
-      <div class="modalTitle" id="confirmTitle">Confirm</div>
-      <button class="iconBtn" id="btnCloseConfirm">×</button>
-    </div>
-
-    <div class="field">
-      <div id="confirmMessage"></div>
-    </div>
-
-    <div class="row" style="justify-content:flex-end">
-      <button class="btn btn--ghost" id="btnConfirmCancel">Cancel</button>
-      <button class="btn btn--primary" id="btnConfirmOk">OK</button>
-    </div>
-  </div>
-</div>
-
-<!-- Rollover analysis modal -->
-<div id="rolloverModal" class="modal hidden">
-  <div class="backdrop" id="rolloverBackdrop"></div>
-
-  <div class="modalCard">
-    <div class="modalHeader">
-      <div class="modalTitle">Missed to-dos</div>
-      <button class="iconBtn" id="btnCloseRollover" type="button">×</button>
-    </div>
-
-    <div id="rolloverContent" class="stack"></div>
-  </div>
-</div>
-
-<!-- Trash / Bin modal -->
-<div id="binModal" class="modal hidden">
-  <div id="binBackdrop" class="backdrop"></div>
-
-    <div class="modalCard">
-    <div class="modalHeader">
-      <div class="modalTitle">Recently deleted</div>
-      <button id="btnCloseBin" class="iconBtn" type="button">×</button>
-    </div>
-
-    <div class="field muted">
-      Items are permanently deleted after 7 days.
-    </div>
-
-    <!-- 🔑 NEW SCROLL CONTAINER -->
-    <div class="modalBody">
-      <div class="grid">
-        <div class="small"><strong>Type</strong></div>
-        <div class="small"><strong>Record</strong></div>
-        <div class="small"></div>
-
-        <div id="binList"></div>
-      </div>
-    </div>
+        const cell = document.createElement("div");
+        cell.className = "cell mealCell";
+        cell.innerHTML = `
+    <div class="mealCellBody ${mealNames.length ? "" : "empty"}">
+    ${mealNames.length
+      ? mealNames.map(n => `<span class="mealPill">${escapeHtml(n)}</span>`).join("")
+      : `<span class="muted">${isTouchDevice() ? "+" : "Drop"}</span>`}
   </div>
 
 
+<button class="btn btn--ghost mealAddBtn" type="button">+</button>
+  <button class="iconBtn" type="button" title="Clear">×</button>
+`;
 
 
+        const body = cell.querySelector(".mealCellBody");
+        dropZone(body, (mealId) => setMealPlan(dateISO, s, mealId));
+        // Mobile: + button to select meal
+if (isTouchDevice()) {
+  const addBtn = cell.querySelector(".mealAddBtn");
 
-<script src="db.js"></script>
-<script src="sync.js"></script>
+  addBtn?.addEventListener("click", (ev) => {
+  ev.stopPropagation();
+  openMealPicker(dateISO, s);
+});
 
-<!-- App logic (LAST) -->
+}
+
+btnCloseMealPicker?.addEventListener("click", () => {
+  hideModal(mealPickerModal);
+  mealPickerContext = null;
+});
+
+mealPickerBackdrop?.addEventListener("click", () => {
+  hideModal(mealPickerModal);
+  mealPickerContext = null;
+});
+
+
+        cell.querySelector('button.iconBtn[title="Clear"]')?.addEventListener("click", () => clearMealPlan(dateISO, s));
+
+        grid.appendChild(cell);
+      }
+    }
+
+    mealWeeklyWrap.appendChild(grid);
+  }
+
+  async function openMealModal(mealId) {
+    editingMealId = mealId;
+    const m = await window.DB.getOne(window.DB.STORES.meals, mealId);
+    if (!m || m._deleted) return;
+
+    mealModalName.value = m.name || "";
+mealModalNotes.value = m.notes || "";
+
+showModal(mealModal);
+
+// IMPORTANT: resize AFTER modal is visible
+requestAnimationFrame(() => {
+  autosizeTextarea(mealModalNotes);
+});
+
+  }
+
+  btnCloseMealModal?.addEventListener("click", () => hideModal(mealModal));
+  mealBackdrop?.addEventListener("click", () => hideModal(mealModal));
+
+  btnSaveMealModal?.addEventListener("click", async () => {
+    if (!editingMealId) return;
+    await window.DB.updateMeal(editingMealId, {
+      name: (mealModalName.value || "").trim() || "Meal",
+      notes: mealModalNotes.value || ""
+    });
+    hideModal(mealModal);
+    await refreshMeals();
+  });
+
+  btnDeleteMealModal?.addEventListener("click", async () => {
+    if (!editingMealId) return;
+    const ok = confirm("Delete this meal?");
+    if (!ok) return;
+    await window.DB.deleteMeal(editingMealId);
+    editingMealId = null;
+    hideModal(mealModal);
+    await refreshMeals();
+  });
+
+  // Autosave meal notes while typing (requested)
+  mealModalNotes?.addEventListener("input", () => {
+    autosizeTextarea(mealModalNotes);
+    debounce("meal_notes_autosave", 300, async () => {
+      if (!editingMealId) return;
+      await window.DB.updateMeal(editingMealId, { notes: mealModalNotes.value || "" });
+    });
+  });
+
+  /* ---------------------------------------------------------
+     Notes (iOS-style)
+     - Index list -> click opens detail view
+     - Autosave on typing
+  --------------------------------------------------------- */
+
+  btnNotesBack?.addEventListener("click", async () => {
+  await autosaveNote();
+  showNotesIndex();
+  await refreshNotes();
+});
+
+
+  function showNotesIndex() {
+    notesDetailCard?.classList.add("hidden");
+    notesIndexCard?.classList.remove("hidden");
+    currentNoteId = null;
+  }
+
+  notesSearchInput?.addEventListener("input", () => {
+  notesSearchText = notesSearchInput.value.toLowerCase();
+  refreshNotes();
+});
+
+
+  function showNotesDetail() {
+    notesIndexCard?.classList.add("hidden");
+    notesDetailCard?.classList.remove("hidden");
+  }
+
+  async function refreshNotesProjectFilter() {
+  if (!notesProjectFilter) return;
+
+  const projects = (await window.DB.getAll(window.DB.STORES.projects))
+    .filter(p => !p._deleted && !p.archived)
+    .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+  notesProjectFilter.innerHTML = `<option value="">All projects</option>`;
+
+  for (const p of projects) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name;
+    notesProjectFilter.appendChild(opt);
+  }
+
+  notesProjectFilter.value = selectedNotesProjectId || "";
+}
+
+
+  async function refreshCollections() {
+  const collections = (await window.DB.getAll(window.DB.STORES.collections))
+  .filter(c => !c._deleted)
+  .filter(c => showArchivedCollections || !c.archived);
+
+
+  collectionList.innerHTML = "";
+
+  // All notes
+  const allLi = document.createElement("li");
+  allLi.textContent = "All notes";
+  allLi.className = selectedCollectionId === null ? "active" : "";
+  allLi.onclick = () => {
+  notesMode = "all";
+  selectedCollectionId = null;
+
+  // 🔑 RESET collection filter
+  filterState.notesCollections.clear();
+  filterState.notesCollections.add("__ALL__");
+
+  showNotesIndex();
+  refreshNotes();
+  refreshCollections();
+};
+
+
+  collectionList.appendChild(allLi);
+
  
-<script src="app.js"></script>
+
+
+  for (const c of collections) {
+    const li = document.createElement("li");
+li.textContent = c.name + (c.archived ? " (archived)" : "");
+    li.className = selectedCollectionId === c.id ? "active" : "";
+    li.onclick = () => {
+  // Sidebar selection is the PRIMARY filter
+  selectedCollectionId = c.id;
+  notesMode = "collection";
+
+  // 🔑 OVERRIDE collection multi-filter
+  filterState.notesCollections.clear();
+  filterState.notesCollections.add(c.id);
+
+  showNotesIndex();
+  refreshNotes();
+  refreshCollections();
+};
+
+
+const openCollectionEditor = async () => {
+  editingCollectionId = c.id;
+
+  collectionModalTitle.textContent = "Edit collection";
+  collectionNameInput.value = c.name;
+
+  btnArchiveCollection.textContent = c.archived ? "Unarchive" : "Archive";
+
+  btnArchiveCollection.onclick = async () => {
+    if (c.archived) {
+      await window.DB.unarchiveCollection(c.id);
+    } else {
+      await window.DB.archiveCollection(c.id);
+    }
+
+    hideModal(collectionModal);
+    await refreshCollections();
+    await refreshNotes();
+  };
+
+  btnDeleteCollection.onclick = async () => {
+    const ok = await confirmInApp({
+      title: "Delete collection",
+      message: "Delete this collection? Notes will remain."
+    });
+    if (!ok) return;
+
+    await window.DB.deleteCollection(c.id);
+    hideModal(collectionModal);
+    await refreshCollections();
+    await refreshNotes();
+  };
+
+  btnArchiveCollection.style.display = "";
+  btnDeleteCollection.style.display = "";
+
+  showModal(collectionModal);
+};
+
+/* Desktop: native double click */
+li.addEventListener("dblclick", openCollectionEditor);
+
+/* Mobile: double-tap detection */
+let lastTap = 0;
+
+li.addEventListener("touchend", (e) => {
+  if (!isNotesMobile()) return;
+
+  const now = Date.now();
+  if (now - lastTap < 300) {
+    e.preventDefault();
+    openCollectionEditor();
+  }
+  lastTap = now;
+});
 
 
 
-</body>
+refreshCollectionsMobile();
+    collectionList.appendChild(li);
+  }
+}
+btnAddCollection?.addEventListener("click", () => {
+  editingCollectionId = null;
+  collectionModalTitle.textContent = "New collection";
+  collectionNameInput.value = "";
 
-</html>
+  btnArchiveCollection.style.display = "none";
+  btnDeleteCollection.style.display = "none";
+
+  showModal(collectionModal);
+});
+
+
+btnCloseCollectionModal?.addEventListener("click", () => hideModal(collectionModal));
+collectionBackdrop?.addEventListener("click", () => hideModal(collectionModal));
+
+btnSaveCollection?.addEventListener("click", async () => {
+  const name = (collectionNameInput.value || "").trim();
+  if (!name) return;
+
+  if (editingCollectionId) {
+    const existing = await window.DB.getOne(window.DB.STORES.collections, editingCollectionId);
+    if (!existing) return;
+
+    await window.DB.put(window.DB.STORES.collections, {
+      ...existing,
+      name,
+      updatedAt: Date.now()
+    });
+  } else {
+    await window.DB.put(window.DB.STORES.collections, {
+  id: crypto.randomUUID(),
+  name,
+  archived: false,
+  createdAt: Date.now(),
+  updatedAt: Date.now(),
+  _deleted: false
+});
+
+  }
+
+  hideModal(collectionModal);
+  await refreshCollections();
+  await refreshNotes();
+});
+
+
+async function populateNotesProjectFilter() {
+  const projects = (await window.DB.getAll(window.DB.STORES.projects))
+    .filter(p => !p._deleted && !p.archived);
+
+  notesProjectFilter.innerHTML = `<option value="">All projects</option>`;
+
+  for (const p of projects) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name;
+    notesProjectFilter.appendChild(opt);
+  }
+}
+
+
+  async function refreshNotes() {
+  showNotesIndex();
+  await buildNotesFilters();
+
+
+  if (notesSearchInput) {
+    notesSearchInput.value = notesSearchText;
+  }
+
+  // --------------------------------------------------
+  // Load collections to determine archived ones
+  // --------------------------------------------------
+  const collections = await window.DB.getAll(window.DB.STORES.collections);
+
+  const archivedCollectionIds = new Set(
+    collections
+      .filter(c => !c._deleted && c.archived)
+      .map(c => c.id)
+  );
+
+  // --------------------------------------------------
+  // Load notes (exclude deleted + archived collections)
+  // --------------------------------------------------
+  const notes = (await window.DB.getAll(window.DB.STORES.notes))
+  .filter(n => !n._deleted)
+  .filter(n => !n.archived)
+  .filter(n => !n.collectionId || !archivedCollectionIds.has(n.collectionId))
+  .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+
+  notesList.innerHTML = "";
+
+  if (!notes.length) {
+    const li = document.createElement("li");
+    li.innerHTML = `<div class="list__left"><div class="muted">No notes yet. Create one.</div></div>`;
+    notesList.appendChild(li);
+    return;
+  }
+
+  let filteredNotes = notes;
+
+  // --------------------------------------------------
+// PRIMARY collection filter: sidebar selection
+// --------------------------------------------------
+if (notesMode === "collection" && selectedCollectionId) {
+  filteredNotes = filteredNotes.filter(
+    n => n.collectionId === selectedCollectionId
+  );
+}
+
+
+  // --------------------------------------------------
+  // Text search filter
+  // --------------------------------------------------
+  if (notesSearchText) {
+    filteredNotes = filteredNotes.filter(n => {
+      const text =
+        ((n.title || "") + (n.body || "")).toLowerCase();
+      return text.includes(notesSearchText);
+    });
+  }
+
+ // ---------- Project filter ----------
+const projSet = filterState.notesProjects;
+if (!projSet.has("__ALL__")) {
+  filteredNotes = filteredNotes.filter(n =>
+    n.projectId && projSet.has(n.projectId)
+  );
+}
+
+
+  // --------------------------------------------------
+  // Render notes
+  // --------------------------------------------------
+  for (const n of filteredNotes) {
+    const li = document.createElement("li");
+
+    const title = (n.title || "Untitled").trim() || "Untitled";
+    const updated = n.updatedAt
+      ? new Date(n.updatedAt).toLocaleString()
+      : "—";
+
+    let projectName = null;
+
+    if (n.projectId) {
+      const p = await window.DB.getOne(window.DB.STORES.projects, n.projectId);
+      if (p && !p._deleted) {
+        projectName = p.name;
+      }
+    }
+
+    li.innerHTML = `
+  <div class="noteRow">
+    <div class="noteCol noteCol--title">
+      <strong>${escapeHtml(title)}</strong>
+    </div>
+
+    ${
+      notesSearchText
+        ? `<div class="noteCol" style="grid-column: 2 / span 2; font-size:12px; color:var(--muted)">
+             ${highlightMatch((n.body || "").slice(0, 120), notesSearchText)}
+           </div>`
+        : `
+           <div class="noteCol noteCol--project">
+             ${projectName ? escapeHtml(projectName) : ""}
+           </div>
+           <div class="noteCol noteCol--date">
+             ${escapeHtml(updated)}
+           </div>
+         `
+    }
+  </div>
+`;
+
+
+    li.addEventListener("click", () => openNote(n.id));
+    notesList.appendChild(li);
+  }
+}
+
+
+  async function openNote(id) {
+    currentNoteId = id;
+    const n = await window.DB.getOne(window.DB.STORES.notes, id);
+    if (!n || n._deleted) return;
+
+    showNotesDetail();
+
+    noteTitle.value = n.title || "";
+noteBody.innerHTML = n.body || "";
+bindRichTextToolbar(noteBody);
+
+    // Populate collection selector
+const collections = (await window.DB.getAll(window.DB.STORES.collections))
+  .filter(c => !c._deleted);
+
+noteCollectionSelect.innerHTML = `<option value="">No collection</option>`;
+for (const c of collections) {
+  const opt = document.createElement("option");
+  opt.value = c.id;
+  opt.textContent = c.name;
+  noteCollectionSelect.appendChild(opt);
+}
+noteCollectionSelect.value = n.collectionId || "";
+
+// Populate project selector
+const projects = (await window.DB.getAll(window.DB.STORES.projects))
+  .filter(p => !p._deleted && !p.archived);
+
+noteProjectSelect.innerHTML = `<option value="">No project</option>`;
+for (const p of projects) {
+  const opt = document.createElement("option");
+  opt.value = p.id;
+  opt.textContent = p.name;
+  noteProjectSelect.appendChild(opt);
+}
+noteProjectSelect.value = n.projectId || "";
+
+
+    noteCreated.textContent = n.createdAt ? new Date(n.createdAt).toLocaleString() : "—";
+    noteUpdated.textContent = n.updatedAt ? new Date(n.updatedAt).toLocaleString() : "—";
+
+autosizeRichText(noteBody);
+  }
+
+
+  noteCollectionSelect?.addEventListener("change", () => {
+  autosaveNote();
+});
+
+noteProjectSelect?.addEventListener("change", () => {
+  autosaveNote();
+});
+
+
+  notesProjectFilter?.addEventListener("change", () => {
+  selectedNotesProjectId = notesProjectFilter.value || null;
+  refreshNotes();
+});
+
+ btnNewNote?.addEventListener("click", async () => {
+
+    
+
+  const input = {
+    title: "",
+    body: ""
+  };
+
+  if (notesMode === "collection" && selectedCollectionId) {
+    input.collectionId = selectedCollectionId;
+  }
+
+  if (selectedNotesProjectId) {
+    input.projectId = selectedNotesProjectId;
+  }
+
+  const rec = await window.DB.upsertNote(input);
+
+  await refreshNotes();
+  await openNote(rec.id);
+
+  requestAnimationFrame(() => {
+    noteTitle.focus();
+    noteTitle.select();
+  });
+});
+
+
+
+  async function autosaveNote() {
+  if (!currentNoteId) return;
+
+  const existing = await window.DB.getOne(
+    window.DB.STORES.notes,
+    currentNoteId
+  );
+  if (!existing || existing._deleted) return;
+
+  const title = (noteTitle.value || "").trim();
+const body = (noteBody.innerHTML || "").trim();
+
+  const now = Date.now();
+  const createdAt = existing.createdAt || now;
+  const ageMs = now - createdAt;
+
+  const hasAnyContent = title.length > 0 || body.length > 0;
+
+  // --------------------------------------------------
+  // 🔒 SAFE AUTO-DELETE RULE (drafts only)
+  // --------------------------------------------------
+  // Auto-delete ONLY if:
+  // - note has NEVER had content
+  // - still empty
+  // - very recently created (draft)
+  // --------------------------------------------------
+
+  const neverHadContent =
+    !(existing.title && existing.title.trim()) &&
+    !(existing.body && existing.body.trim());
+
+  const DRAFT_WINDOW_MS = 60 * 1000; // 60 seconds
+
+  if (
+    !hasAnyContent &&
+    neverHadContent &&
+    ageMs < DRAFT_WINDOW_MS
+  ) {
+    await window.DB.deleteNote(currentNoteId);
+    currentNoteId = null;
+    await refreshNotes();
+    return;
+  }
+
+  // --------------------------------------------------
+  // 🔒 NEVER overwrite existing content with empty UI
+  // --------------------------------------------------
+  if (!hasAnyContent) {
+    return;
+  }
+
+  const updatedAt = now;
+
+  await window.DB.updateNote(currentNoteId, {
+    title,
+    body,
+    collectionId: noteCollectionSelect.value || null,
+    projectId: noteProjectSelect.value || null,
+    updatedAt
+  });
+
+  noteUpdated.textContent = new Date(updatedAt).toLocaleString();
+}
+
+
+
+  noteTitle?.addEventListener("input", () => debounce("note_autosave", 250, autosaveNote));
+  noteTitle?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    noteBody.focus();
+  }
+});
+  noteBody?.addEventListener("input", () => {
+  autosizeRichText(noteBody);
+  debounce("note_autosave", 250, autosaveNote);
+});
+
+
+
+  btnSaveNote?.addEventListener("click", async () => {
+    await autosaveNote();
+    alert("Saved.");
+  });
+
+  btnDeleteNote?.addEventListener("click", async () => {
+    if (!currentNoteId) return;
+    const ok = await confirmInApp({
+  title: "Delete note",
+  message: "Delete this note?"
+});
+if (!ok) return;
+
+    if (!ok) return;
+    await window.DB.deleteNote(currentNoteId);
+    currentNoteId = null;
+    noteTitle.value = "";
+    noteBody.value = "";
+    noteCreated.textContent = "—";
+    noteUpdated.textContent = "—";
+    await refreshNotes();
+  });
+
+  /* ---------------------------------------------------------
+     Init
+  --------------------------------------------------------- */
+
+  async function init() {
+
+    // --------------------------------------------------
+// Trash retention: purge items deleted > 7 days ago
+// --------------------------------------------------
+
+    if (!window.DB) {
+      alert("DB layer not available. Check that db.js is loading and defines window.DB.");
+      return;
+    }
+
+    await window.DB.init();
+
+    try {
+  const cutoff = Date.now() - BIN_RETENTION_MS;
+  if (window.DB.purgeDeletedOlderThan) {
+    await window.DB.purgeDeletedOlderThan(cutoff);
+  }
+} catch (e) {
+  console.warn("Trash purge failed:", e);
+}
+    
+
+    initTabs();
+    await initServiceWorker();
+    wireAutosize();
+
+    const theme = (await window.DB.getSetting("ui.theme", "aurora")) || "aurora";
+    const font = (await window.DB.getSetting("ui.font", "system")) || "system";
+    applyThemeAndFont(theme, font);
+
+    await applyTabVisibility();
+
+    if (!habitRefDate.value) habitRefDate.value = todayStrISO();
+    if (!mealRefDate.value) mealRefDate.value = todayStrISO();
+
+    // Restore last sync stamp if present
+    const lastSync = await window.DB.getSetting("sync.lastAt", null);
+    updateSyncStamp(lastSync, "Last synced");
+
+    setDashboardPeriod("Week");
+    setActionsMode(actionsMode);
+    setHabitTrackMode("weekly");
+    setMealMode("daily");
+
+    updateTopbar();
+
+// Open rollover analysis when clicking the to-do completion card
+const todoMetricValue = document.getElementById("mTodoWeek");
+
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    maybeRunDailyTodoRollover();
+  }
+});
+
+await maybeRunDailyTodoRollover();
+
+
+
+
+    setTab("dashboard");
+    await refreshCollections();
+    await buildNotesFilters();
+    await refreshNotesProjectFilter();
+
+  }
+
+  init();
+})();
