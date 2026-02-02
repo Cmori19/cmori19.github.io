@@ -3073,6 +3073,7 @@ right.appendChild(delBtn);
   btnJournalBack?.addEventListener("click", async () => {
   // IMPORTANT: force-save journal before returning to list
   await autosaveJournal();
+      showJournalIndex();
   await refreshJournalIndex();
 });
 
@@ -3302,7 +3303,7 @@ const objectives = jObjectives.innerHTML || "";
     objectives.trim() ||
     Object.keys(cleanedReflections).length > 0;
 
-  if (!hasAnyContent && existing) {
+  if (!hasAnyContent && !existing) {
     return;
   }
 
@@ -5725,3 +5726,4 @@ await maybeRunDailyTodoRollover();
 
   init();
 })();
+
